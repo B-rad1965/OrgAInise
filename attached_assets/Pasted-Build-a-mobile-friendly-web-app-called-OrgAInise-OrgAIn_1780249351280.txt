@@ -1,0 +1,179 @@
+Build a mobile-friendly web app called OrgAInise.
+
+OrgAInise is an all-purpose AI project context manager. It helps users keep long-term projects organized by turning messy session notes, chat summaries, or manual notes into clean, approved project memory and reusable context blocks.
+
+Core promise:
+Keep your projects organized and your AI up to speed.
+
+Main workflow:
+1. User creates a project.
+2. User selects a project type template.
+3. User chooses/edit memory categories.
+4. User pastes session notes, chat summary, or manual update.
+5. App uses OpenAI API to analyze the pasted text.
+6. AI suggests updates sorted by category.
+7. User can approve, edit, reject, or change category for each suggestion.
+8. Approved updates are saved into project memory.
+9. User can generate a clean context block to copy/paste into ChatGPT, Claude, Gemini, Replit, etc.
+
+Use localStorage for Version 1.
+No login.
+No payments.
+No external database yet.
+Use the OpenAI API key stored in Replit Secrets as OPENAI_API_KEY.
+
+Required screens:
+
+1. Dashboard
+- App title: OrgAInise
+- Tagline: Keep your projects organized and your AI up to speed.
+- List saved projects
+- Create New Project button
+- Each project card shows name, type, last updated, number of saved memory items
+
+2. Create Project Screen
+Fields:
+- Project name
+- Project type:
+  - Writing / Worldbuilding
+  - Business / Startup
+  - Research / Learning
+  - Coding / App Build
+  - Trading / Investing
+  - Personal / Life
+  - Custom
+
+After selecting project type, suggest default categories but allow user to edit.
+
+Default categories:
+- Project Summary
+- Core Rules
+- Current Direction
+- Recent Decisions
+- Open Questions
+- Important Details
+- Ideas to Explore
+- Manual Notes
+
+Allow:
+- checkbox selection
+- add custom category
+- remove category
+- rename category
+
+3. Project Memory Screen
+Show project memory grouped by category.
+
+Each saved memory item should include:
+- text
+- category
+- importance level:
+  - Must Include
+  - Useful Context
+  - Archive / Reference Only
+- created date
+- updated date
+
+Actions:
+- edit item
+- delete item
+- change category
+- change importance level
+- add manual note
+
+4. Session Update Screen
+Large text area:
+"Paste session notes, chat summary, or manual update here."
+
+Button:
+"Review Session"
+
+When clicked:
+Send the pasted text plus existing project memory/categories to OpenAI.
+
+AI should return suggested updates grouped by category.
+
+Each suggested update should include:
+- suggested text
+- category
+- suggested importance level
+- reason why it may matter
+- possible conflict/replacement note if it appears to change older saved information
+
+Each suggestion should have:
+- Approve
+- Reject
+- Edit
+- Change Category
+
+Approved suggestions are saved as individual memory items.
+
+Also store the raw pasted session/update in session history.
+Keep only the last 10 session updates per project.
+
+5. Context Block Screen
+Button:
+"Generate Context Block"
+
+Options:
+- Short: about 500 words
+- Medium: about 1000 words
+- Full: up to 2000+ words
+
+User can choose categories to include.
+
+Default behavior:
+- Always include Must Include items
+- Include Useful Context items when relevant
+- Exclude Archive / Reference Only unless user selects it
+
+Generated context block should be formatted clearly:
+
+PROJECT:
+TYPE:
+PROJECT SUMMARY:
+CORE RULES:
+CURRENT DIRECTION:
+RECENT DECISIONS:
+OPEN QUESTIONS:
+IMPORTANT DETAILS:
+IDEAS TO EXPLORE:
+MANUAL NOTES:
+
+Include only categories that exist in the project and have content.
+
+Add:
+- Copy to Clipboard button
+- Download as .txt button
+
+AI behavior for Review Session:
+- Do not save everything.
+- Extract only important facts, decisions, rules, direction changes, unresolved questions, meaningful insights, and updates.
+- Avoid duplicates.
+- Detect when a new item may replace or contradict an older memory item.
+- Keep suggestions concise.
+- Never save automatically. User approval is required.
+
+AI behavior for Generate Context Block:
+- Compress saved memory into a useful refresher block.
+- Prioritize clarity and usefulness.
+- Avoid bloated summaries.
+- Make it easy to paste into another AI chat to quickly bring the model up to speed.
+
+Design:
+- Clean, modern, practical
+- Mobile-friendly but works on desktop
+- Simple dashboard/cards/tabs
+- Use tabs inside each project:
+  - Memory
+  - Update Session
+  - Context Block
+  - History
+- No clutter
+- Prioritize workflow speed
+
+Important:
+- Include friendly error messages if OpenAI fails.
+- Include a non-AI fallback message explaining that AI review needs the API key.
+- Keep code organized and easy to expand later.
+- This is Version 1 MVP for one user testing.
