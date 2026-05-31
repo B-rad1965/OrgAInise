@@ -1,12 +1,16 @@
 import { useState, useMemo } from "react";
 import { useStorage } from "@/lib/storage";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, BrainCircuit, Database, Clock, Search, ArrowUpDown, AlarmClock, ArrowDownAZ, CalendarClock } from "lucide-react";
+import {
+  Plus, BrainCircuit, Database, Clock, Search,
+  ArrowUpDown, AlarmClock, ArrowDownAZ, CalendarClock,
+  MoreHorizontal, Copy, Trash2,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -15,44 +19,74 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 type SortOption = "recently-updated" | "alphabetical" | "recently-created";
 
 const SORT_LABELS: Record<SortOption, { label: string; icon: React.ReactNode }> = {
   "recently-updated": { label: "Recently Updated", icon: <AlarmClock className="h-3.5 w-3.5" /> },
-  "alphabetical": { label: "Alphabetical", icon: <ArrowDownAZ className="h-3.5 w-3.5" /> },
+  "alphabetical":     { label: "Alphabetical",     icon: <ArrowDownAZ className="h-3.5 w-3.5" /> },
   "recently-created": { label: "Recently Created", icon: <CalendarClock className="h-3.5 w-3.5" /> },
 };
 
 export default function Dashboard() {
   const { Storage } = useStorage();
-  const projects = Storage.getProjects();
-  const memories = Storage.getMemories();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<SortOption>("recently-updated");
+  const projects = Storage.getProjects();
+  const memories  = Storage.getMemories();
+
+  const [search, setSearch]               = useState("");
+  const [sort, setSort]                   = useState<SortOption>("recently-updated");
+  const [deleteTarget, setDeleteTarget]   = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let list = q
-      ? projects.filter(
-          (p) =>
-            p.name.toLowerCase().includes(q) ||
-            p.type.toLowerCase().includes(q)
-        )
+      ? projects.filter(p => p.name.toLowerCase().includes(q) || p.type.toLowerCase().includes(q))
       : [...projects];
 
     if (sort === "recently-updated") {
       list.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     } else if (sort === "alphabetical") {
       list.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (sort === "recently-created") {
+    } else {
       list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
-
     return list;
   }, [projects, search, sort]);
+
+  function handleDuplicate(id: string, name: string, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const copy = Storage.duplicateProject(id);
+    if (copy) {
+      toast({ title: "Project duplicated", description: `"${copy.name}" is ready to edit.` });
+      setLocation(`/projects/${copy.id}`);
+    }
+  }
+
+  function handleDeleteConfirm() {
+    if (!deleteTarget) return;
+    const project = Storage.getProject(deleteTarget);
+    Storage.deleteProject(deleteTarget);
+    setDeleteTarget(null);
+    toast({ title: "Project deleted", description: `"${project?.name}" has been removed.` });
+  }
 
   return (
     <Layout>
@@ -94,37 +128,23 @@ export default function Dashboard() {
                   data-testid="input-search-projects"
                   placeholder="Search projects…"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={e => setSearch(e.target.value)}
                   className="pl-9"
                 />
               </div>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2 shrink-0"
-                    data-testid="button-sort-projects"
-                  >
+                  <Button variant="outline" size="sm" className="gap-2 shrink-0" data-testid="button-sort-projects">
                     <ArrowUpDown className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">{SORT_LABELS[sort].label}</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuRadioGroup
-                    value={sort}
-                    onValueChange={(v) => setSort(v as SortOption)}
-                  >
+                  <DropdownMenuRadioGroup value={sort} onValueChange={v => setSort(v as SortOption)}>
                     {(Object.entries(SORT_LABELS) as [SortOption, typeof SORT_LABELS[SortOption]][]).map(([value, { label, icon }]) => (
-                      <DropdownMenuRadioItem
-                        key={value}
-                        value={value}
-                        className="gap-2"
-                        data-testid={`sort-option-${value}`}
-                      >
-                        {icon}
-                        {label}
+                      <DropdownMenuRadioItem key={value} value={value} className="gap-2" data-testid={`sort-option-${value}`}>
+                        {icon}{label}
                       </DropdownMenuRadioItem>
                     ))}
                   </DropdownMenuRadioGroup>
@@ -146,20 +166,14 @@ export default function Dashboard() {
                   <p className="text-muted-foreground">
                     No projects match <span className="text-foreground font-medium">"{search}"</span>
                   </p>
-                  <button
-                    className="text-sm text-primary mt-2 hover:underline"
-                    onClick={() => setSearch("")}
-                  >
+                  <button className="text-sm text-primary mt-2 hover:underline" onClick={() => setSearch("")}>
                     Clear search
                   </button>
                 </motion.div>
               ) : (
-                <motion.div
-                  key="grid"
-                  className="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
-                >
+                <motion.div key="grid" className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {filtered.map((project, idx) => {
-                    const projectMemories = memories.filter((m) => m.projectId === project.id);
+                    const projectMemories = memories.filter(m => m.projectId === project.id);
 
                     return (
                       <motion.div
@@ -174,14 +188,50 @@ export default function Dashboard() {
                         <Link href={`/projects/${project.id}`}>
                           <Card className="h-full hover:border-primary/50 transition-colors cursor-pointer group hover-elevate">
                             <CardHeader className="pb-3">
-                              <div className="flex justify-between items-start">
-                                <CardTitle className="text-xl group-hover:text-primary transition-colors line-clamp-1">
+                              <div className="flex justify-between items-start gap-2">
+                                <CardTitle className="text-xl group-hover:text-primary transition-colors line-clamp-1 flex-1">
                                   {project.name}
                                 </CardTitle>
-                                <Badge variant="secondary" className="font-mono text-xs shrink-0 ml-2">
-                                  {project.type}
-                                </Badge>
+
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <Badge variant="secondary" className="font-mono text-xs hidden sm:flex">
+                                    {project.type}
+                                  </Badge>
+
+                                  {/* Card action menu */}
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <button
+                                        data-testid={`button-card-menu-${project.id}`}
+                                        className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                        onClick={e => { e.preventDefault(); e.stopPropagation(); }}
+                                      >
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-44" onClick={e => e.stopPropagation()}>
+                                      <DropdownMenuItem
+                                        data-testid={`button-duplicate-${project.id}`}
+                                        className="gap-2 cursor-pointer"
+                                        onSelect={e => handleDuplicate(project.id, project.name, e as unknown as React.MouseEvent)}
+                                      >
+                                        <Copy className="h-4 w-4" />
+                                        Duplicate
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        data-testid={`button-delete-${project.id}`}
+                                        className="gap-2 cursor-pointer text-destructive focus:text-destructive"
+                                        onSelect={e => { e.preventDefault(); setDeleteTarget(project.id); }}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
                               </div>
+
                               <CardDescription className="flex items-center mt-2">
                                 <Clock className="mr-1 h-3 w-3" />
                                 Updated {formatDistanceToNow(new Date(project.updatedAt), { addSuffix: true })}
@@ -210,6 +260,28 @@ export default function Dashboard() {
           </>
         )}
       </div>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the project, all its memory items, and session history. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-delete-cancel">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-delete-confirm"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDeleteConfirm}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }

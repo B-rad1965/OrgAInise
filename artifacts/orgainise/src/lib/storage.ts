@@ -76,6 +76,22 @@ export const Storage = {
     }
     writeData(STORAGE_KEYS.PROJECTS, projects);
   },
+  duplicateProject: (id: string): Project | null => {
+    const projects = readData<Project[]>(STORAGE_KEYS.PROJECTS, []);
+    const source = projects.find(p => p.id === id);
+    if (!source) return null;
+    const now = new Date().toISOString();
+    const copy: Project = {
+      ...source,
+      id: Math.random().toString(36).substr(2, 9) + Date.now().toString(36),
+      name: `Copy of ${source.name}`,
+      createdAt: now,
+      updatedAt: now,
+    };
+    projects.push(copy);
+    writeData(STORAGE_KEYS.PROJECTS, projects);
+    return copy;
+  },
   deleteProject: (id: string) => {
     const projects = readData<Project[]>(STORAGE_KEYS.PROJECTS, []).filter(p => p.id !== id);
     writeData(STORAGE_KEYS.PROJECTS, projects);
