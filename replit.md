@@ -1,36 +1,50 @@
-# [Project name]
+# OrgAInise
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+An all-purpose AI project context manager. Turns messy session notes into clean, approved project memory and reusable context blocks you can paste into any AI chat.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
+- `pnpm --filter @workspace/orgainise run dev` — run the frontend (port 25292)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required secrets: `OPENAI_API_KEY` — OpenAI API key for AI features
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
+- Frontend: React + Vite, Tailwind CSS, shadcn/ui, framer-motion, wouter
+- API: Express 5 (proxies OpenAI calls)
+- Data: localStorage (V1 — no database)
+- AI: OpenAI gpt-4o via server-side proxy
+- Validation: Zod (`zod/v4`)
 - API codegen: Orval (from OpenAPI spec)
 - Build: esbuild (CJS bundle)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `lib/api-spec/openapi.yaml` — API contract (source of truth)
+- `artifacts/orgainise/src/lib/storage.ts` — localStorage data layer
+- `artifacts/orgainise/src/pages/` — all page components
+- `artifacts/api-server/src/routes/ai.ts` — OpenAI proxy routes
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- All project data (projects, memory items, session history) lives in localStorage — no DB for V1.
+- OpenAI calls go through the Express backend to keep the API key server-side.
+- Only 2 backend endpoints: `POST /api/ai/analyze-session` and `POST /api/ai/generate-context`.
+- Session history is capped at 10 entries per project to avoid unbounded localStorage growth.
+- `gpt-4o` with `response_format: json_object` for session analysis (predictable parsing).
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Dashboard: list saved projects with stats
+- Create Project: 2-step form with type selection + category editor
+- Project view with 4 tabs: Memory | Update Session | Context Block | History
+- Memory tab: items grouped by category, editable with importance levels
+- Update Session: paste notes → AI suggests updates → user approves/rejects each
+- Context Block: generate short/medium/full refresher for pasting into any AI
 
 ## User preferences
 
@@ -38,7 +52,8 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Google Fonts `@import url(...)` must be the VERY FIRST line of `index.css` — PostCSS fails silently if it comes after `@import "tailwindcss"`.
+- After each OpenAPI spec change, run codegen before using updated types.
 
 ## Pointers
 

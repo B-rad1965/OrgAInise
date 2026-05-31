@@ -3,13 +3,15 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: OrgAInise API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: ai
+    description: AI-powered operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,71 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /ai/analyze-session:
+    post:
+      operationId: analyzeSession
+      tags: [ai]
+      summary: Analyze session notes
+      description: Sends session notes and existing memory to OpenAI, returns suggested updates grouped by category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionAnalysisInput"
+      responses:
+        "200":
+          description: AI-generated suggestions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionAnalysisResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ai/generate-context:
+    post:
+      operationId: generateContextBlock
+      tags: [ai]
+      summary: Generate a context block
+      description: Compresses saved memory into a clean context block for pasting into AI chats
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContextBlockInput"
+      responses:
+        "200":
+          description: Generated context block
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContextBlockResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +101,95 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    MemoryItemSummary:
+      type: object
+      required: [text, category, importanceLevel]
+      properties:
+        text:
+          type: string
+        category:
+          type: string
+        importanceLevel:
+          type: string
+          enum: [must-include, useful-context, archive-reference]
+
+    SessionAnalysisInput:
+      type: object
+      required: [projectName, projectType, categories, existingMemory, sessionNotes]
+      properties:
+        projectName:
+          type: string
+        projectType:
+          type: string
+        categories:
+          type: array
+          items:
+            type: string
+        existingMemory:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemoryItemSummary"
+        sessionNotes:
+          type: string
+
+    AiSuggestion:
+      type: object
+      required: [suggestedText, category, importanceLevel, reason]
+      properties:
+        suggestedText:
+          type: string
+        category:
+          type: string
+        importanceLevel:
+          type: string
+          enum: [must-include, useful-context, archive-reference]
+        reason:
+          type: string
+        conflictNote:
+          type: ["string", "null"]
+
+    SessionAnalysisResult:
+      type: object
+      required: [suggestions]
+      properties:
+        suggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiSuggestion"
+
+    ContextBlockInput:
+      type: object
+      required: [projectName, projectType, length, selectedCategories, memoryItems]
+      properties:
+        projectName:
+          type: string
+        projectType:
+          type: string
+        length:
+          type: string
+          enum: [short, medium, full]
+        selectedCategories:
+          type: array
+          items:
+            type: string
+        includeArchive:
+          type: boolean
+        memoryItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/MemoryItemSummary"
+
+    ContextBlockResult:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
