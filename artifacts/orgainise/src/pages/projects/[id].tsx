@@ -6,85 +6,62 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  useAnalyzeSession,
-  useGenerateContextBlock,
-} from "@workspace/api-client-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useAnalyzeSession, useGenerateContextBlock } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Settings, Trash2, Edit2, Copy, Download, BrainCircuit, Sparkles,
+  Trash2, Edit2, Copy, Download, BrainCircuit, Sparkles,
   Clock, CheckCircle2, XCircle, ArrowRight, RefreshCw, Database,
+  Plus, GitMerge, X,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-/* ─── Inline edit ────────────────────────────────────────────────── */
+/* ─── InlineEdit ─────────────────────────────────────────────────── */
 function InlineEdit({
-  value,
-  onSave,
-  className,
-  placeholder,
+  value, onSave, className, placeholder,
 }: {
-  value: string;
-  onSave: (v: string) => void;
-  className?: string;
-  placeholder?: string;
+  value: string; onSave: (v: string) => void;
+  className?: string; placeholder?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft]     = useState(value);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const ref = useRef<HTMLInputElement>(null);
 
   const startEdit = () => {
-    setDraft(value);
-    setEditing(true);
-    setTimeout(() => { inputRef.current?.focus(); inputRef.current?.select(); }, 0);
+    setDraft(value); setEditing(true);
+    setTimeout(() => { ref.current?.focus(); ref.current?.select(); }, 0);
   };
-
   const commit = () => {
-    const trimmed = draft.trim();
-    if (trimmed && trimmed !== value) onSave(trimmed);
+    const t = draft.trim();
+    if (t && t !== value) onSave(t);
     setEditing(false);
   };
-
   const cancel = () => { setDraft(value); setEditing(false); };
 
-  if (editing) {
-    return (
-      <input
-        ref={inputRef}
-        value={draft}
-        placeholder={placeholder}
-        onChange={e => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={e => {
-          if (e.key === "Enter")  { e.preventDefault(); commit(); }
-          if (e.key === "Escape") cancel();
-        }}
-        className={cn(
-          "bg-transparent border-b-2 border-primary outline-none w-full min-w-[4ch]",
-          className,
-        )}
-      />
-    );
-  }
+  if (editing) return (
+    <input ref={ref} value={draft} placeholder={placeholder}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); commit(); } if (e.key === "Escape") cancel(); }}
+      className={cn("bg-transparent border-b-2 border-primary outline-none w-full min-w-[4ch]", className)}
+    />
+  );
 
   return (
-    <span
-      onClick={startEdit}
-      title="Click to edit"
-      className={cn(
-        "cursor-text group/ie inline-flex items-center gap-1.5 hover:text-primary transition-colors",
-        className,
-      )}
-    >
+    <span onClick={startEdit} title="Click to rename"
+      className={cn("cursor-text group/ie inline-flex items-center gap-1.5 hover:text-primary transition-colors", className)}>
       {value}
       <Edit2 className="h-3.5 w-3.5 opacity-0 group-hover/ie:opacity-50 transition-opacity shrink-0" />
     </span>
@@ -103,40 +80,52 @@ export default function ProjectDetail() {
   const memories  = Storage.getMemories(projectId);
   const history   = Storage.getHistory(projectId);
 
-  const [activeTab, setActiveTab]         = useState("memory");
+  /* ── general ui ── */
+  const [activeTab, setActiveTab] = useState("memory");
+
+  /* ── memory dialog ── */
   const [isAddMemoryOpen, setIsAddMemoryOpen] = useState(false);
-  const [memoryForm, setMemoryForm]       = useState({
+  const [memoryForm, setMemoryForm] = useState({
     text: "", category: "", importanceLevel: "useful-context" as MemoryItem["importanceLevel"],
   });
   const [editingMemory, setEditingMemory] = useState<MemoryItem | null>(null);
 
-  const [sessionNotes, setSessionNotes]       = useState("");
+  /* ── category management ── */
+  const [addingCategory, setAddingCategory]   = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const newCatRef = useRef<HTMLInputElement>(null);
+
+  // delete dialog
+  const [deletingCat, setDeletingCat]       = useState<string | null>(null);
+  const [deleteMode, setDeleteMode]         = useState<"move" | "archive">("move");
+  const [deleteMoveTarget, setDeleteMoveTarget] = useState<string>("");
+
+  // merge dialog
+  const [mergingCat, setMergingCat]   = useState<string | null>(null);
+  const [mergeTarget, setMergeTarget] = useState<string>("");
+
+  /* ── session ── */
+  const [sessionNotes, setSessionNotes]             = useState("");
   const [reviewingSuggestions, setReviewingSuggestions] = useState<AiSuggestion[] | null>(null);
   const [suggestionDecisions, setSuggestionDecisions]   = useState<Record<number, "approve" | "reject">>({});
 
-  const [contextLength, setContextLength]         = useState<"short" | "medium" | "full">("medium");
+  /* ── context block ── */
+  const [contextLength, setContextLength]           = useState<"short" | "medium" | "full">("medium");
   const [selectedCategories, setSelectedCategories] = useState<string[]>(project?.categories || []);
   const [includeArchive, setIncludeArchive]         = useState(false);
   const [generatedContext, setGeneratedContext]     = useState("");
 
+  /* ── mutations ── */
   const analyzeSession = useAnalyzeSession({
     mutation: {
-      onSuccess: (result) => {
-        setReviewingSuggestions(result.suggestions);
-        setSuggestionDecisions({});
-      },
-      onError: () => {
-        toast({ title: "AI Review Failed", description: "Check your OpenAI API key or try again.", variant: "destructive" });
-      },
+      onSuccess: r => { setReviewingSuggestions(r.suggestions); setSuggestionDecisions({}); },
+      onError: () => toast({ title: "AI Review Failed", description: "Check your OpenAI API key or try again.", variant: "destructive" }),
     },
   });
-
   const generateContext = useGenerateContextBlock({
     mutation: {
-      onSuccess: (result) => setGeneratedContext(result.content),
-      onError: () => {
-        toast({ title: "Generation Failed", description: "Check your OpenAI API key or try again.", variant: "destructive" });
-      },
+      onSuccess: r => setGeneratedContext(r.content),
+      onError: () => toast({ title: "Generation Failed", description: "Check your OpenAI API key or try again.", variant: "destructive" }),
     },
   });
 
@@ -144,20 +133,93 @@ export default function ProjectDetail() {
     <Layout><div className="text-center py-20 text-muted-foreground">Project not found.</div></Layout>
   );
 
-  /* ── inline-save helpers ── */
-  const saveField = (updates: Partial<typeof project>) => {
+  /* ── save helpers ── */
+  const saveField = (updates: Partial<typeof project>) =>
     Storage.saveProject({ ...project, ...updates, updatedAt: new Date().toISOString() });
-  };
 
   const renameCategory = (oldName: string, newName: string) => {
-    const trimmed = newName.trim();
-    if (!trimmed || trimmed === oldName) return;
-    const newCategories = project.categories.map(c => c === oldName ? trimmed : c);
-    Storage.saveProject({ ...project, categories: newCategories, updatedAt: new Date().toISOString() });
-    memories.filter(m => m.category === oldName).forEach(m =>
-      Storage.saveMemory({ ...m, category: trimmed, updatedAt: new Date().toISOString() })
+    const t = newName.trim();
+    if (!t || t === oldName) return;
+    if (project.categories.includes(t)) {
+      toast({ title: "Category already exists", variant: "destructive" }); return;
+    }
+    saveField({ categories: project.categories.map(c => c === oldName ? t : c) });
+    memories.filter(m => m.category === oldName)
+      .forEach(m => Storage.saveMemory({ ...m, category: t, updatedAt: new Date().toISOString() }));
+    setSelectedCategories(prev => prev.map(c => c === oldName ? t : c));
+  };
+
+  /* ── category management handlers ── */
+  const commitAddCategory = () => {
+    const t = newCategoryName.trim();
+    if (!t) { setAddingCategory(false); return; }
+    if (project.categories.includes(t)) {
+      toast({ title: `"${t}" already exists`, variant: "destructive" });
+      return;
+    }
+    saveField({ categories: [...project.categories, t] });
+    setSelectedCategories(prev => [...prev, t]);
+    setNewCategoryName("");
+    setAddingCategory(false);
+    toast({ title: "Category added", description: t });
+  };
+
+  const openDeleteCat = (name: string) => {
+    const items = (memoriesByCategory[name] || []);
+    if (items.length === 0) {
+      // empty → delete immediately
+      saveField({ categories: project.categories.filter(c => c !== name) });
+      setSelectedCategories(prev => prev.filter(c => c !== name));
+      toast({ title: "Category deleted" });
+      return;
+    }
+    const others = project.categories.filter(c => c !== name);
+    setDeleteMoveTarget(others[0] || "");
+    setDeleteMode("move");
+    setDeletingCat(name);
+  };
+
+  const confirmDeleteCat = () => {
+    if (!deletingCat) return;
+    const items = memoriesByCategory[deletingCat] || [];
+
+    if (deleteMode === "move" && deleteMoveTarget) {
+      items.forEach(m =>
+        Storage.saveMemory({ ...m, category: deleteMoveTarget, updatedAt: new Date().toISOString() })
+      );
+      toast({ title: "Items moved", description: `${items.length} items → "${deleteMoveTarget}"` });
+    } else if (deleteMode === "archive") {
+      const archiveTarget = project.categories.filter(c => c !== deletingCat)[0] || deletingCat;
+      items.forEach(m =>
+        Storage.saveMemory({ ...m, category: archiveTarget, importanceLevel: "archive-reference", updatedAt: new Date().toISOString() })
+      );
+      toast({ title: "Items archived", description: `${items.length} items marked as archive reference` });
+    }
+
+    saveField({ categories: project.categories.filter(c => c !== deletingCat) });
+    setSelectedCategories(prev => prev.filter(c => c !== deletingCat));
+    setDeletingCat(null);
+  };
+
+  const openMergeCat = (name: string) => {
+    const others = project.categories.filter(c => c !== name);
+    if (others.length === 0) {
+      toast({ title: "No other categories to merge into", variant: "destructive" }); return;
+    }
+    setMergeTarget(others[0]);
+    setMergingCat(name);
+  };
+
+  const confirmMergeCat = () => {
+    if (!mergingCat || !mergeTarget) return;
+    const items = memoriesByCategory[mergingCat] || [];
+    items.forEach(m =>
+      Storage.saveMemory({ ...m, category: mergeTarget, updatedAt: new Date().toISOString() })
     );
-    setSelectedCategories(prev => prev.map(c => c === oldName ? trimmed : c));
+    saveField({ categories: project.categories.filter(c => c !== mergingCat) });
+    setSelectedCategories(prev => prev.filter(c => c !== mergingCat));
+    toast({ title: "Categories merged", description: `${items.length} items → "${mergeTarget}"` });
+    setMergingCat(null);
   };
 
   /* ── grouping ── */
@@ -166,7 +228,7 @@ export default function ProjectDetail() {
     project.categories.forEach(c => { grouped[c] = []; });
     grouped["Uncategorized"] = [];
     memories.forEach(m => {
-      (grouped[m.category] ?? grouped["Uncategorized"]).push(m);
+      (grouped[m.category] ? grouped[m.category] : grouped["Uncategorized"]).push(m);
     });
     return grouped;
   }, [memories, project.categories]);
@@ -174,16 +236,14 @@ export default function ProjectDetail() {
   /* ── memory handlers ── */
   const handleSaveMemory = () => {
     if (!memoryForm.text || !memoryForm.category) return;
-    const mem: MemoryItem = {
+    Storage.saveMemory({
       id: editingMemory ? editingMemory.id : generateId(),
       projectId: project.id,
-      text: memoryForm.text,
-      category: memoryForm.category,
+      text: memoryForm.text, category: memoryForm.category,
       importanceLevel: memoryForm.importanceLevel,
       createdAt: editingMemory ? editingMemory.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    };
-    Storage.saveMemory(mem);
+    });
     Storage.saveProject({ ...project, updatedAt: new Date().toISOString() });
     setIsAddMemoryOpen(false);
     setEditingMemory(null);
@@ -194,8 +254,7 @@ export default function ProjectDetail() {
     if (!sessionNotes.trim()) return;
     analyzeSession.mutate({
       data: {
-        projectName: project.name,
-        projectType: project.type,
+        projectName: project.name, projectType: project.type,
         categories: project.categories,
         existingMemory: memories.map(m => ({ text: m.text, category: m.category, importanceLevel: m.importanceLevel })),
         sessionNotes,
@@ -251,12 +310,10 @@ export default function ProjectDetail() {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([generatedContext], { type: "text/plain" }));
     a.download = `${project.name.replace(/\s+/g, "-").toLowerCase()}-context.txt`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    document.body.appendChild(a); a.click(); a.remove();
   };
 
-  /* ─── Render ─────────────────────────────────────────────────────── */
+  /* ─── Render ─────────────────────────────────────────────────── */
   return (
     <Layout>
       <div className="flex flex-col space-y-6">
@@ -266,19 +323,11 @@ export default function ProjectDetail() {
           <div className="space-y-2">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-3xl font-bold tracking-tight">
-                <InlineEdit
-                  value={project.name}
-                  onSave={v => saveField({ name: v })}
-                  className="text-3xl font-bold tracking-tight"
-                />
+                <InlineEdit value={project.name} onSave={v => saveField({ name: v })}
+                  className="text-3xl font-bold tracking-tight" />
               </h1>
-              <span title="Click to edit type">
-                <InlineEdit
-                  value={project.type}
-                  onSave={v => saveField({ type: v })}
-                  className="font-mono text-xs px-2 py-0.5 border border-border rounded-md bg-background text-muted-foreground"
-                />
-              </span>
+              <InlineEdit value={project.type} onSave={v => saveField({ type: v })}
+                className="font-mono text-xs px-2 py-0.5 border border-border rounded-md bg-background text-muted-foreground" />
             </div>
             <div className="flex items-center text-sm text-muted-foreground gap-1">
               <Clock className="h-3 w-3" />
@@ -288,13 +337,9 @@ export default function ProjectDetail() {
               {memories.length} items
             </div>
           </div>
-
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => {
-              if (confirm("Delete this project?")) {
-                Storage.deleteProject(project.id);
-                setLocation("/");
-              }
+              if (confirm("Delete this project?")) { Storage.deleteProject(project.id); setLocation("/"); }
             }}>
               <Trash2 className="h-4 w-4 mr-2" /> Delete
             </Button>
@@ -309,7 +354,7 @@ export default function ProjectDetail() {
             <TabsTrigger value="history" className="text-sm">History</TabsTrigger>
           </TabsList>
 
-          {/* ── MEMORY TAB ─────────────────────────────────────────── */}
+          {/* ── MEMORY TAB ─────────────────────────────────────── */}
           <TabsContent value="memory" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">Knowledge Graph</h2>
@@ -330,12 +375,10 @@ export default function ProjectDetail() {
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
                       <Label>Fact / Note</Label>
-                      <Textarea
-                        value={memoryForm.text}
+                      <Textarea value={memoryForm.text}
                         onChange={e => setMemoryForm({ ...memoryForm, text: e.target.value })}
                         className="min-h-[100px]"
-                        placeholder="e.g. We decided to drop the React Native build in favour of PWA."
-                      />
+                        placeholder="e.g. We decided to drop the React Native build in favour of PWA." />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -352,7 +395,7 @@ export default function ProjectDetail() {
                         <Select value={memoryForm.importanceLevel} onValueChange={(v: any) => setMemoryForm({ ...memoryForm, importanceLevel: v })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="must-include">Must Include (Rules)</SelectItem>
+                            <SelectItem value="must-include">Must Include</SelectItem>
                             <SelectItem value="useful-context">Useful Context</SelectItem>
                             <SelectItem value="archive-reference">Archive Reference</SelectItem>
                           </SelectContent>
@@ -367,21 +410,43 @@ export default function ProjectDetail() {
               </Dialog>
             </div>
 
+            {/* Category list */}
             {Object.entries(memoriesByCategory).map(([category, items]) => {
-              if (items.length === 0) return null;
+              if (items.length === 0 && category === "Uncategorized") return null;
+              const isUncategorized = category === "Uncategorized";
               return (
                 <div key={category} className="space-y-3">
-                  <h3 className="font-semibold text-lg border-b border-border/50 pb-2 text-primary/80">
-                    {category === "Uncategorized" ? (
-                      <span className="text-muted-foreground italic">Uncategorized</span>
-                    ) : (
-                      <InlineEdit
-                        value={category}
-                        onSave={newName => renameCategory(category, newName)}
-                        className="font-semibold text-lg text-primary/80"
-                      />
+                  {/* Category header */}
+                  <div className="flex items-center justify-between border-b border-border/50 pb-2 group/cat">
+                    <h3 className="font-semibold text-lg text-primary/80">
+                      {isUncategorized
+                        ? <span className="text-muted-foreground italic text-base">Uncategorized</span>
+                        : <InlineEdit value={category} onSave={n => renameCategory(category, n)}
+                            className="font-semibold text-lg text-primary/80" />
+                      }
+                    </h3>
+                    {!isUncategorized && (
+                      <div className="flex items-center gap-1 opacity-0 group-hover/cat:opacity-100 transition-opacity">
+                        <span className="text-xs text-muted-foreground mr-1">{items.length} item{items.length !== 1 ? "s" : ""}</span>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary"
+                          title="Merge into another category"
+                          onClick={() => openMergeCat(category)}>
+                          <GitMerge className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          title={items.length === 0 ? "Delete category" : "Delete category…"}
+                          onClick={() => openDeleteCat(category)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     )}
-                  </h3>
+                  </div>
+
+                  {items.length === 0 && (
+                    <p className="text-sm text-muted-foreground italic pl-1">Empty category — add a note or delete it.</p>
+                  )}
+
+                  {/* Memory items */}
                   <div className="grid gap-3">
                     {items.map(item => (
                       <Card key={item.id} className="bg-card hover-elevate group transition-colors">
@@ -399,16 +464,12 @@ export default function ProjectDetail() {
                             </div>
                           </div>
                           <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-2">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => {
-                              setEditingMemory(item);
-                              setMemoryForm({ text: item.text, category: item.category, importanceLevel: item.importanceLevel });
-                              setIsAddMemoryOpen(true);
-                            }}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
+                              onClick={() => { setEditingMemory(item); setMemoryForm({ text: item.text, category: item.category, importanceLevel: item.importanceLevel }); setIsAddMemoryOpen(true); }}>
                               <Edit2 className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => {
-                              if (confirm("Delete this memory?")) Storage.deleteMemory(item.id);
-                            }}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => { if (confirm("Delete this memory?")) Storage.deleteMemory(item.id); }}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -420,14 +481,49 @@ export default function ProjectDetail() {
               );
             })}
 
-            {memories.length === 0 && (
+            {memories.length === 0 && project.categories.length === 0 && (
               <div className="text-center p-12 border border-dashed rounded-lg text-muted-foreground">
                 No memories yet. Paste a session log or add a manual note.
               </div>
             )}
+
+            {/* Add category row */}
+            <div className="pt-2 border-t border-border/30">
+              <AnimatePresence mode="wait">
+                {addingCategory ? (
+                  <motion.div key="adding"
+                    initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    className="flex items-center gap-2">
+                    <Input
+                      ref={newCatRef}
+                      autoFocus
+                      placeholder="Category name…"
+                      value={newCategoryName}
+                      onChange={e => setNewCategoryName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") commitAddCategory();
+                        if (e.key === "Escape") { setAddingCategory(false); setNewCategoryName(""); }
+                      }}
+                      className="max-w-xs h-9"
+                    />
+                    <Button size="sm" onClick={commitAddCategory}>Add</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setAddingCategory(false); setNewCategoryName(""); }}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </motion.div>
+                ) : (
+                  <motion.div key="btn" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <Button variant="outline" size="sm" className="gap-2 text-muted-foreground hover:text-foreground"
+                      onClick={() => { setAddingCategory(true); setNewCategoryName(""); }}>
+                      <Plus className="h-4 w-4" /> Add Category
+                    </Button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </TabsContent>
 
-          {/* ── UPDATE SESSION TAB ─────────────────────────────────── */}
+          {/* ── UPDATE SESSION TAB ─────────────────────────────── */}
           <TabsContent value="update">
             {!reviewingSuggestions ? (
               <div className="space-y-6">
@@ -435,19 +531,13 @@ export default function ProjectDetail() {
                   <h2 className="text-xl font-semibold mb-2">Process Session Transcript</h2>
                   <p className="text-muted-foreground text-sm">Paste the conversation or notes from your latest AI session. The system will extract facts and updates.</p>
                 </div>
-                <Textarea
-                  placeholder="Paste chat logs, commit notes, or random thoughts here..."
+                <Textarea placeholder="Paste chat logs, commit notes, or random thoughts here..."
                   className="min-h-[400px] font-mono text-sm leading-relaxed p-4"
-                  value={sessionNotes}
-                  onChange={e => setSessionNotes(e.target.value)}
-                />
-                <Button
-                  size="lg" className="w-full h-14 text-lg"
-                  onClick={handleReviewSession}
-                  disabled={!sessionNotes.trim() || analyzeSession.isPending}
-                >
+                  value={sessionNotes} onChange={e => setSessionNotes(e.target.value)} />
+                <Button size="lg" className="w-full h-14 text-lg" onClick={handleReviewSession}
+                  disabled={!sessionNotes.trim() || analyzeSession.isPending}>
                   {analyzeSession.isPending
-                    ? <><RefreshCw className="mr-2 h-5 w-5 animate-spin" />Analyzing Transcript...</>
+                    ? <><RefreshCw className="mr-2 h-5 w-5 animate-spin" />Analyzing Transcript…</>
                     : <><BrainCircuit className="mr-2 h-5 w-5" />Extract Insights</>}
                 </Button>
               </div>
@@ -460,13 +550,12 @@ export default function ProjectDetail() {
                   </div>
                   <Button variant="outline" onClick={() => setReviewingSuggestions(null)}>Cancel</Button>
                 </div>
-
                 <div className="grid gap-4">
                   {reviewingSuggestions.map((sug, idx) => (
                     <Card key={idx} className={cn("border-2 transition-colors", {
-                      "border-primary bg-primary/5":        suggestionDecisions[idx] === "approve",
-                      "border-destructive/30 opacity-50":   suggestionDecisions[idx] === "reject",
-                      "border-border":                      !suggestionDecisions[idx],
+                      "border-primary bg-primary/5":       suggestionDecisions[idx] === "approve",
+                      "border-destructive/30 opacity-50":  suggestionDecisions[idx] === "reject",
+                      "border-border":                     !suggestionDecisions[idx],
                     })}>
                       <CardContent className="p-5">
                         <div className="flex gap-4">
@@ -479,23 +568,19 @@ export default function ProjectDetail() {
                             </div>
                             {sug.conflictNote && (
                               <div className="bg-destructive/10 text-destructive-foreground p-2 rounded text-sm border border-destructive/20">
-                                <strong>Conflict Detected:</strong> {sug.conflictNote}
+                                <strong>Conflict:</strong> {sug.conflictNote}
                               </div>
                             )}
                           </div>
-                          <div className="flex flex-col gap-2 justify-start border-l border-border/50 pl-4">
-                            <Button
-                              variant={suggestionDecisions[idx] === "approve" ? "default" : "outline"}
+                          <div className="flex flex-col gap-2 border-l border-border/50 pl-4">
+                            <Button variant={suggestionDecisions[idx] === "approve" ? "default" : "outline"}
                               size="sm" className="w-24"
-                              onClick={() => setSuggestionDecisions(prev => ({ ...prev, [idx]: "approve" }))}
-                            >
+                              onClick={() => setSuggestionDecisions(prev => ({ ...prev, [idx]: "approve" }))}>
                               <CheckCircle2 className="mr-1 h-4 w-4" /> Keep
                             </Button>
-                            <Button
-                              variant={suggestionDecisions[idx] === "reject" ? "destructive" : "outline"}
+                            <Button variant={suggestionDecisions[idx] === "reject" ? "destructive" : "outline"}
                               size="sm" className="w-24"
-                              onClick={() => setSuggestionDecisions(prev => ({ ...prev, [idx]: "reject" }))}
-                            >
+                              onClick={() => setSuggestionDecisions(prev => ({ ...prev, [idx]: "reject" }))}>
                               <XCircle className="mr-1 h-4 w-4" /> Discard
                             </Button>
                           </div>
@@ -503,14 +588,10 @@ export default function ProjectDetail() {
                       </CardContent>
                     </Card>
                   ))}
-
                   {reviewingSuggestions.length === 0 && (
-                    <div className="text-center p-12 text-muted-foreground border rounded">
-                      No extractable facts found in that transcript.
-                    </div>
+                    <div className="text-center p-12 text-muted-foreground border rounded">No extractable facts found.</div>
                   )}
                 </div>
-
                 <div className="sticky bottom-4 p-4 bg-background/95 backdrop-blur border rounded-lg shadow-xl flex justify-between items-center mt-8">
                   <div className="text-sm font-medium">
                     {Object.values(suggestionDecisions).filter(v => v === "approve").length} selected for injection
@@ -523,7 +604,7 @@ export default function ProjectDetail() {
             )}
           </TabsContent>
 
-          {/* ── CONTEXT BLOCK TAB ──────────────────────────────────── */}
+          {/* ── CONTEXT BLOCK TAB ──────────────────────────────── */}
           <TabsContent value="context" className="space-y-6">
             <div className="grid md:grid-cols-[300px_1fr] gap-8">
               <div className="space-y-6">
@@ -531,7 +612,6 @@ export default function ProjectDetail() {
                   <h2 className="text-lg font-semibold mb-4">Context Generator</h2>
                   <p className="text-sm text-muted-foreground mb-6">Compile your memories into an optimised system prompt.</p>
                 </div>
-
                 <div className="space-y-3">
                   <Label>Length Target</Label>
                   <Select value={contextLength} onValueChange={(v: any) => setContextLength(v)}>
@@ -543,51 +623,38 @@ export default function ProjectDetail() {
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-3">
                   <Label>Include Categories</Label>
                   <ScrollArea className="h-[200px] border rounded-md p-3">
                     {project.categories.map(cat => (
                       <div key={cat} className="flex items-center space-x-2 mb-3 last:mb-0">
-                        <Checkbox
-                          id={`cat-${cat}`}
-                          checked={selectedCategories.includes(cat)}
+                        <Checkbox id={`cat-${cat}`} checked={selectedCategories.includes(cat)}
                           onCheckedChange={checked => {
-                            if (checked) setSelectedCategories(prev => [...prev, cat]);
-                            else setSelectedCategories(prev => prev.filter(c => c !== cat));
-                          }}
-                        />
-                        <label htmlFor={`cat-${cat}`} className="text-sm font-medium leading-none cursor-pointer">{cat}</label>
+                            if (checked) setSelectedCategories(p => [...p, cat]);
+                            else setSelectedCategories(p => p.filter(c => c !== cat));
+                          }} />
+                        <label htmlFor={`cat-${cat}`} className="text-sm font-medium cursor-pointer">{cat}</label>
                       </div>
                     ))}
                   </ScrollArea>
                 </div>
-
                 <div className="flex items-center space-x-2 pt-2 border-t border-border/50">
-                  <Checkbox
-                    id="archive"
-                    checked={includeArchive}
-                    onCheckedChange={v => setIncludeArchive(!!v)}
-                  />
+                  <Checkbox id="archive" checked={includeArchive} onCheckedChange={v => setIncludeArchive(!!v)} />
                   <label htmlFor="archive" className="text-sm cursor-pointer">Include archive references</label>
                 </div>
-
-                <Button className="w-full" onClick={handleGenerateContext} disabled={generateContext.isPending || selectedCategories.length === 0}>
+                <Button className="w-full" onClick={handleGenerateContext}
+                  disabled={generateContext.isPending || selectedCategories.length === 0}>
                   {generateContext.isPending
                     ? <><RefreshCw className="mr-2 h-4 w-4 animate-spin" />Generating…</>
                     : <><Sparkles className="mr-2 h-4 w-4" />Generate Context Block</>}
                 </Button>
               </div>
-
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold">Output</h2>
                 {generatedContext ? (
                   <>
-                    <Textarea
-                      value={generatedContext}
-                      readOnly
-                      className="min-h-[400px] font-mono text-sm bg-muted/30 leading-relaxed p-4"
-                    />
+                    <Textarea value={generatedContext} readOnly
+                      className="min-h-[400px] font-mono text-sm bg-muted/30 leading-relaxed p-4" />
                     <div className="flex gap-3">
                       <Button variant="outline" onClick={copyToClipboard} className="flex-1">
                         <Copy className="mr-2 h-4 w-4" /> Copy to Clipboard
@@ -609,13 +676,12 @@ export default function ProjectDetail() {
             </div>
           </TabsContent>
 
-          {/* ── HISTORY TAB ────────────────────────────────────────── */}
+          {/* ── HISTORY TAB ────────────────────────────────────── */}
           <TabsContent value="history" className="space-y-6">
             <h2 className="text-xl font-semibold">Session History</h2>
-
             {history.length === 0 ? (
               <div className="text-center p-12 border border-dashed rounded-lg text-muted-foreground">
-                No sessions logged yet. Process a session to see history here.
+                No sessions logged yet.
               </div>
             ) : (
               <div className="space-y-4">
@@ -656,6 +722,90 @@ export default function ProjectDetail() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* ── DELETE CATEGORY DIALOG ─────────────────────────────── */}
+      <Dialog open={!!deletingCat} onOpenChange={open => !open && setDeletingCat(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete "{deletingCat}"</DialogTitle>
+            <DialogDescription>
+              This category has {deletingCat ? (memoriesByCategory[deletingCat]?.length ?? 0) : 0} item
+              {(memoriesByCategory[deletingCat ?? ""]?.length ?? 0) !== 1 ? "s" : ""}. What should happen to them?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <RadioGroup value={deleteMode} onValueChange={(v: any) => setDeleteMode(v)} className="space-y-3">
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-border has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 transition-colors cursor-pointer"
+                onClick={() => setDeleteMode("move")}>
+                <RadioGroupItem value="move" id="del-move" className="mt-0.5" />
+                <div className="flex-1">
+                  <label htmlFor="del-move" className="font-medium cursor-pointer text-sm">Move to another category</label>
+                  {deleteMode === "move" && (
+                    <div className="mt-2">
+                      <Select value={deleteMoveTarget} onValueChange={setDeleteMoveTarget}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pick a category" /></SelectTrigger>
+                        <SelectContent>
+                          {project.categories.filter(c => c !== deletingCat).map(c =>
+                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-border has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 transition-colors cursor-pointer"
+                onClick={() => setDeleteMode("archive")}>
+                <RadioGroupItem value="archive" id="del-archive" className="mt-0.5" />
+                <label htmlFor="del-archive" className="font-medium cursor-pointer text-sm">
+                  Archive items
+                  <span className="block text-xs text-muted-foreground font-normal mt-0.5">
+                    Mark as archive reference and move to the next available category.
+                  </span>
+                </label>
+              </div>
+            </RadioGroup>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingCat(null)}>Cancel</Button>
+            <Button variant="destructive"
+              disabled={deleteMode === "move" && !deleteMoveTarget}
+              onClick={confirmDeleteCat}>
+              Delete Category
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── MERGE CATEGORY DIALOG ──────────────────────────────── */}
+      <Dialog open={!!mergingCat} onOpenChange={open => !open && setMergingCat(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Merge "{mergingCat}"</DialogTitle>
+            <DialogDescription>
+              All {mergingCat ? (memoriesByCategory[mergingCat]?.length ?? 0) : 0} item
+              {(memoriesByCategory[mergingCat ?? ""]?.length ?? 0) !== 1 ? "s" : ""} will move to the target category, and "{mergingCat}" will be removed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-2">
+            <Label>Merge into</Label>
+            <Select value={mergeTarget} onValueChange={setMergeTarget}>
+              <SelectTrigger><SelectValue placeholder="Pick a category" /></SelectTrigger>
+              <SelectContent>
+                {project.categories.filter(c => c !== mergingCat).map(c =>
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMergingCat(null)}>Cancel</Button>
+            <Button disabled={!mergeTarget} onClick={confirmMergeCat}>
+              <GitMerge className="mr-2 h-4 w-4" /> Merge
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }
