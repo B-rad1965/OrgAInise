@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 
+/* ─── Types ──────────────────────────────────────────────────────── */
 export type ImportanceLevel = 'must-include' | 'useful-context' | 'archive-reference';
 
 export type Project = {
@@ -38,44 +39,114 @@ export type SessionHistory = {
   createdAt: string;
 };
 
+/* ─── Keys ───────────────────────────────────────────────────────── */
 const STORAGE_KEYS = {
   PROJECTS: 'orgainise_projects',
   MEMORIES: 'orgainise_memories',
-  HISTORY: 'orgainise_history',
-};
+  HISTORY:  'orgainise_history',
+} as const;
 
-// Generic read/write
+/* ─── Storage health check ───────────────────────────────────────── */
+export function checkStorageHealth(): { ok: boolean; error?: string } {
+  try {
+    const k = '__orgainise_health_chk__';
+    localStorage.setItem(k, '✓');
+    const v = localStorage.getItem(k);
+    localStorage.removeItem(k);
+    if (v !== '✓') return { ok: false, error: 'Read-back mismatch — localStorage may be unreliable.' };
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error
+        ? `localStorage unavailable: ${e.message}`
+        : 'localStorage is blocked or unavailable in this context.',
+    };
+  }
+}
+
+/* ─── Low-level I/O ──────────────────────────────────────────────── */
 function readData<T>(key: string, defaultValue: T): T {
   try {
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : defaultValue;
+    if (!raw) return defaultValue;
+    return JSON.parse(raw) as T;
   } catch {
+    // Don't wipe data on parse error — return the default so the app
+    // stays usable, but don't silently overwrite corrupt data.
     return defaultValue;
   }
 }
 
-function writeData<T>(key: string, data: T) {
+function writeData<T>(key: string, data: T): void {
+  // Signal "saving" to any listeners
+  window.dispatchEvent(new CustomEvent('orgainise:write', { detail: { phase: 'start' } }));
   try {
-    localStorage.setItem(key, JSON.stringify(data));
+    const serialized = JSON.stringify(data);
+    localStorage.setItem(key, serialized);
+
+    // Verify the write actually landed
+    const readBack = localStorage.getItem(key);
+    if (readBack !== serialized) {
+      throw new Error('Write verification failed — data was not stored correctly.');
+    }
+
+    window.dispatchEvent(new CustomEvent('orgainise:write', {
+      detail: { phase: 'success', timestamp: Date.now() },
+    }));
+    // Trigger re-renders in useStorage consumers
     window.dispatchEvent(new Event('storage-update'));
   } catch (e) {
-    console.error("Failed to write to localStorage", e);
+    const msg = e instanceof Error ? e.message : 'Unknown localStorage error';
+    window.dispatchEvent(new CustomEvent('orgainise:write', {
+      detail: { phase: 'error', message: msg },
+    }));
+    // Log but do NOT silently swallow — the UI will show the error
+    console.error('[OrgAInise] localStorage write failed:', msg, e);
   }
 }
 
-export const Storage = {
-  getProjects: () => readData<Project[]>(STORAGE_KEYS.PROJECTS, []),
-  getProject: (id: string) => readData<Project[]>(STORAGE_KEYS.PROJECTS, []).find(p => p.id === id),
-  saveProject: (project: Project) => {
+/* ─── Manual "save all" (re-writes every key) ────────────────────── */
+export function saveAll(): { ok: boolean; error?: string } {
+  try {
     const projects = readData<Project[]>(STORAGE_KEYS.PROJECTS, []);
-    const existingIndex = projects.findIndex(p => p.id === project.id);
-    if (existingIndex >= 0) {
-      projects[existingIndex] = project;
-    } else {
-      projects.push(project);
-    }
+    const memories = readData<MemoryItem[]>(STORAGE_KEYS.MEMORIES, []);
+    const history  = readData<SessionHistory[]>(STORAGE_KEYS.HISTORY, []);
+
+    localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
+    localStorage.setItem(STORAGE_KEYS.MEMORIES, JSON.stringify(memories));
+    localStorage.setItem(STORAGE_KEYS.HISTORY,  JSON.stringify(history));
+
+    window.dispatchEvent(new CustomEvent('orgainise:write', {
+      detail: { phase: 'success', timestamp: Date.now() },
+    }));
+    window.dispatchEvent(new Event('storage-update'));
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Save failed';
+    window.dispatchEvent(new CustomEvent('orgainise:write', {
+      detail: { phase: 'error', message: msg },
+    }));
+    return { ok: false, error: msg };
+  }
+}
+
+/* ─── Storage API ────────────────────────────────────────────────── */
+export const Storage = {
+  /* Projects */
+  getProjects: (): Project[] =>
+    readData<Project[]>(STORAGE_KEYS.PROJECTS, []),
+
+  getProject: (id: string): Project | undefined =>
+    readData<Project[]>(STORAGE_KEYS.PROJECTS, []).find(p => p.id === id),
+
+  saveProject: (project: Project): void => {
+    const projects = readData<Project[]>(STORAGE_KEYS.PROJECTS, []);
+    const idx = projects.findIndex(p => p.id === project.id);
+    if (idx >= 0) projects[idx] = project; else projects.push(project);
     writeData(STORAGE_KEYS.PROJECTS, projects);
   },
+
   duplicateProject: (id: string): Project | null => {
     const projects = readData<Project[]>(STORAGE_KEYS.PROJECTS, []);
     const source = projects.find(p => p.id === id);
@@ -83,7 +154,7 @@ export const Storage = {
     const now = new Date().toISOString();
     const copy: Project = {
       ...source,
-      id: Math.random().toString(36).substr(2, 9) + Date.now().toString(36),
+      id: generateId(),
       name: `Copy of ${source.name}`,
       createdAt: now,
       updatedAt: now,
@@ -92,69 +163,67 @@ export const Storage = {
     writeData(STORAGE_KEYS.PROJECTS, projects);
     return copy;
   },
-  deleteProject: (id: string) => {
-    const projects = readData<Project[]>(STORAGE_KEYS.PROJECTS, []).filter(p => p.id !== id);
-    writeData(STORAGE_KEYS.PROJECTS, projects);
-    
-    // Also delete associated memories and history
-    const memories = readData<MemoryItem[]>(STORAGE_KEYS.MEMORIES, []).filter(m => m.projectId !== id);
-    writeData(STORAGE_KEYS.MEMORIES, memories);
-    
-    const history = readData<SessionHistory[]>(STORAGE_KEYS.HISTORY, []).filter(h => h.projectId !== id);
-    writeData(STORAGE_KEYS.HISTORY, history);
+
+  deleteProject: (id: string): void => {
+    writeData(STORAGE_KEYS.PROJECTS,
+      readData<Project[]>(STORAGE_KEYS.PROJECTS, []).filter(p => p.id !== id));
+    writeData(STORAGE_KEYS.MEMORIES,
+      readData<MemoryItem[]>(STORAGE_KEYS.MEMORIES, []).filter(m => m.projectId !== id));
+    writeData(STORAGE_KEYS.HISTORY,
+      readData<SessionHistory[]>(STORAGE_KEYS.HISTORY, []).filter(h => h.projectId !== id));
   },
 
-  getMemories: (projectId?: string) => {
-    const memories = readData<MemoryItem[]>(STORAGE_KEYS.MEMORIES, []);
-    return projectId ? memories.filter(m => m.projectId === projectId) : memories;
+  /* Memories */
+  getMemories: (projectId?: string): MemoryItem[] => {
+    const all = readData<MemoryItem[]>(STORAGE_KEYS.MEMORIES, []);
+    return projectId ? all.filter(m => m.projectId === projectId) : all;
   },
-  saveMemory: (memory: MemoryItem) => {
+
+  saveMemory: (memory: MemoryItem): void => {
     const memories = readData<MemoryItem[]>(STORAGE_KEYS.MEMORIES, []);
-    const existingIndex = memories.findIndex(m => m.id === memory.id);
-    if (existingIndex >= 0) {
-      memories[existingIndex] = memory;
-    } else {
-      memories.push(memory);
-    }
-    writeData(STORAGE_KEYS.MEMORIES, memories);
-  },
-  deleteMemory: (id: string) => {
-    const memories = readData<MemoryItem[]>(STORAGE_KEYS.MEMORIES, []).filter(m => m.id !== id);
+    const idx = memories.findIndex(m => m.id === memory.id);
+    if (idx >= 0) memories[idx] = memory; else memories.push(memory);
     writeData(STORAGE_KEYS.MEMORIES, memories);
   },
 
-  getHistory: (projectId: string) => {
-    return readData<SessionHistory[]>(STORAGE_KEYS.HISTORY, [])
+  deleteMemory: (id: string): void => {
+    writeData(STORAGE_KEYS.MEMORIES,
+      readData<MemoryItem[]>(STORAGE_KEYS.MEMORIES, []).filter(m => m.id !== id));
+  },
+
+  /* History */
+  getHistory: (projectId: string): SessionHistory[] =>
+    readData<SessionHistory[]>(STORAGE_KEYS.HISTORY, [])
       .filter(h => h.projectId === projectId)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  },
-  saveHistory: (history: SessionHistory) => {
-    let allHistory = readData<SessionHistory[]>(STORAGE_KEYS.HISTORY, []);
-    allHistory.push(history);
-    
-    // Keep only last 10 per project
-    const projectHistory = allHistory
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+
+  saveHistory: (history: SessionHistory): void => {
+    let all = readData<SessionHistory[]>(STORAGE_KEYS.HISTORY, []);
+    all.push(history);
+    // Cap at 10 entries per project
+    const capped = all
       .filter(h => h.projectId === history.projectId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 10);
-      
-    allHistory = allHistory.filter(h => h.projectId !== history.projectId).concat(projectHistory);
-    writeData(STORAGE_KEYS.HISTORY, allHistory);
-  }
+    all = all.filter(h => h.projectId !== history.projectId).concat(capped);
+    writeData(STORAGE_KEYS.HISTORY, all);
+  },
 };
 
+/* ─── useStorage hook ────────────────────────────────────────────── */
 export function useStorage() {
   const [stamp, setStamp] = useState(0);
-  
+
   useEffect(() => {
     const handler = () => setStamp(s => s + 1);
     window.addEventListener('storage-update', handler);
     return () => window.removeEventListener('storage-update', handler);
   }, []);
-  
+
   return { stamp, Storage };
 }
 
-export function generateId() {
-  return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+/* ─── Helpers ────────────────────────────────────────────────────── */
+export function generateId(): string {
+  return Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 }
