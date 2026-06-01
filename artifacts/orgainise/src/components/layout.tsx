@@ -80,18 +80,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Button
               variant="ghost"
               size="sm"
-              className="hidden md:flex text-muted-foreground hover:text-foreground gap-1.5"
+              className="flex text-muted-foreground hover:text-foreground gap-1.5"
               onClick={handleSaveNow}
               title="Manually re-write all data to localStorage"
             >
               <Save className="h-3.5 w-3.5" />
-              Save Now
+              <span className="hidden md:inline">Save Now</span>
             </Button>
 
             <Link href="/">
-              <Button variant="ghost" size="sm" className="hidden md:flex">
-                <LayoutDashboard className="h-4 w-4 mr-2" />
-                Dashboard
+              <Button variant="ghost" size="sm" className="flex">
+                <LayoutDashboard className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">Dashboard</span>
               </Button>
             </Link>
             <Link href="/projects/new">

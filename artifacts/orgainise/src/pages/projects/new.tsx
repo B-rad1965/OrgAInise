@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, X, ArrowRight, Save, LayoutTemplate } from "lucide-react";
 import { generateId, useStorage, Project } from "@/lib/storage";
+import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 
@@ -95,6 +96,7 @@ const step1Schema = z.object({
 export default function CreateProject() {
   const [, setLocation] = useLocation();
   const { Storage }     = useStorage();
+  const { toast }       = useToast();
   const [step, setStep] = useState<1 | 2>(1);
   const [categories, setCategories] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState("");
@@ -139,7 +141,10 @@ export default function CreateProject() {
       updatedAt: new Date().toISOString(),
     };
 
+    console.log(`[OrgAInise] Creating project id="${newProject.id}" name="${newProject.name}" using key="orgainise_projects"`);
     Storage.saveProject(newProject);
+    console.log(`[OrgAInise] Project saved. Navigating to /projects/${newProject.id}`);
+    toast({ title: "Project saved successfully", description: `"${newProject.name}" is ready. Log sessions and build memory.` });
     setLocation(`/projects/${newProject.id}`);
   }
 

@@ -118,7 +118,7 @@ export default function ProjectDetail() {
   /* ── mutations ── */
   const analyzeSession = useAnalyzeSession({
     mutation: {
-      onSuccess: r => { setReviewingSuggestions(r.suggestions); setSuggestionDecisions({}); },
+      onSuccess: r => { setReviewingSuggestions(r.suggestions as AiSuggestion[]); setSuggestionDecisions({}); },
       onError: () => toast({ title: "AI Review Failed", description: "Check your OpenAI API key or try again.", variant: "destructive" }),
     },
   });
@@ -129,9 +129,26 @@ export default function ProjectDetail() {
     },
   });
 
-  if (!project) return (
-    <Layout><div className="text-center py-20 text-muted-foreground">Project not found.</div></Layout>
-  );
+  /* ── grouping — MUST live before the early-return to satisfy Rules of Hooks ── */
+  const memoriesByCategory = useMemo(() => {
+    if (!project) return {} as Record<string, MemoryItem[]>;
+    const grouped: Record<string, MemoryItem[]> = {};
+    project.categories.forEach(c => { grouped[c] = []; });
+    grouped["Uncategorized"] = [];
+    memories.forEach(m => {
+      (grouped[m.category] ? grouped[m.category] : grouped["Uncategorized"]).push(m);
+    });
+    return grouped;
+  }, [memories, project?.categories]);
+
+  if (!project) {
+    console.log(`[OrgAInise] ProjectDetail: id="${projectId}" — NOT FOUND in localStorage`);
+    return (
+      <Layout><div className="text-center py-20 text-muted-foreground">Project not found.</div></Layout>
+    );
+  }
+
+  console.log(`[OrgAInise] ProjectDetail: id="${projectId}" found — "${project.name}" (${project.categories.length} categories)`);
 
   /* ── save helpers ── */
   const saveField = (updates: Partial<typeof project>) =>
@@ -221,17 +238,6 @@ export default function ProjectDetail() {
     toast({ title: "Categories merged", description: `${items.length} items → "${mergeTarget}"` });
     setMergingCat(null);
   };
-
-  /* ── grouping ── */
-  const memoriesByCategory = useMemo(() => {
-    const grouped: Record<string, MemoryItem[]> = {};
-    project.categories.forEach(c => { grouped[c] = []; });
-    grouped["Uncategorized"] = [];
-    memories.forEach(m => {
-      (grouped[m.category] ? grouped[m.category] : grouped["Uncategorized"]).push(m);
-    });
-    return grouped;
-  }, [memories, project.categories]);
 
   /* ── memory handlers ── */
   const handleSaveMemory = () => {

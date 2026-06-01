@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useStorage } from "@/lib/storage";
 import { Link, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
@@ -49,6 +49,13 @@ export default function Dashboard() {
 
   const projects = Storage.getProjects();
   const memories  = Storage.getMemories();
+
+  useEffect(() => {
+    console.log(`[OrgAInise] Dashboard loaded. Projects in localStorage: ${projects.length}`);
+    if (projects.length > 0) {
+      projects.forEach(p => console.log(`  → id="${p.id}" name="${p.name}"`));
+    }
+  }, [projects.length]);
 
   const [search, setSearch]               = useState("");
   const [sort, setSort]                   = useState<SortOption>("recently-updated");

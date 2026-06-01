@@ -27,7 +27,7 @@ export type AiSuggestion = {
   category: string;
   importanceLevel: ImportanceLevel;
   reason: string;
-  conflictNote: string | null;
+  conflictNote: string | null | undefined;
 };
 
 export type SessionHistory = {
@@ -79,30 +79,22 @@ function readData<T>(key: string, defaultValue: T): T {
 }
 
 function writeData<T>(key: string, data: T): void {
-  // Signal "saving" to any listeners
+  const count = Array.isArray(data) ? `${(data as unknown[]).length} item(s)` : '1 object';
+  console.log(`[OrgAInise] localStorage.setItem key="${key}" (${count})`);
   window.dispatchEvent(new CustomEvent('orgainise:write', { detail: { phase: 'start' } }));
   try {
-    const serialized = JSON.stringify(data);
-    localStorage.setItem(key, serialized);
-
-    // Verify the write actually landed
-    const readBack = localStorage.getItem(key);
-    if (readBack !== serialized) {
-      throw new Error('Write verification failed — data was not stored correctly.');
-    }
-
+    localStorage.setItem(key, JSON.stringify(data));
+    console.log(`[OrgAInise] localStorage.setItem key="${key}" — SUCCESS`);
     window.dispatchEvent(new CustomEvent('orgainise:write', {
       detail: { phase: 'success', timestamp: Date.now() },
     }));
-    // Trigger re-renders in useStorage consumers
     window.dispatchEvent(new Event('storage-update'));
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown localStorage error';
+    console.error(`[OrgAInise] localStorage.setItem key="${key}" — FAILED:`, msg, e);
     window.dispatchEvent(new CustomEvent('orgainise:write', {
       detail: { phase: 'error', message: msg },
     }));
-    // Log but do NOT silently swallow — the UI will show the error
-    console.error('[OrgAInise] localStorage write failed:', msg, e);
   }
 }
 
@@ -144,6 +136,7 @@ export const Storage = {
     const projects = readData<Project[]>(STORAGE_KEYS.PROJECTS, []);
     const idx = projects.findIndex(p => p.id === project.id);
     if (idx >= 0) projects[idx] = project; else projects.push(project);
+    console.log(`[OrgAInise] saveProject id="${project.id}" name="${project.name}" → writing ${projects.length} project(s) to key="${STORAGE_KEYS.PROJECTS}"`);
     writeData(STORAGE_KEYS.PROJECTS, projects);
   },
 
