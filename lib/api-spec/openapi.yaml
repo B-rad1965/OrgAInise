@@ -14,6 +14,8 @@ tags:
     description: AI-powered operations
   - name: Auth
     description: Browser and mobile authentication endpoints.
+  - name: data
+    description: CRUD operations for project data (authenticated users only).
 paths:
   /healthz:
     get:
@@ -215,6 +217,272 @@ paths:
               schema:
                 $ref: '#/components/schemas/LogoutSuccess'
 
+  # ── Data CRUD ─────────────────────────────────────────────────────
+  /projects:
+    get:
+      tags: [data]
+      operationId: listProjects
+      summary: List all projects for the authenticated user
+      responses:
+        '200':
+          description: Projects listed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [projects]
+                properties:
+                  projects:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DbProject'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      tags: [data]
+      operationId: upsertProject
+      summary: Create or update a project (upsert by id)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DbProject'
+      responses:
+        '200':
+          description: Project saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DbProject'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /projects/{projectId}:
+    delete:
+      tags: [data]
+      operationId: deleteProject
+      summary: Delete a project and all its data
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Not your project.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Project not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /projects/{projectId}/memories:
+    get:
+      tags: [data]
+      operationId: listMemories
+      summary: List memories for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Memories listed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [memories]
+                properties:
+                  memories:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DbMemoryItem'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Not your project.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /memories/{memoryId}:
+    put:
+      tags: [data]
+      operationId: upsertMemory
+      summary: Create or update a memory item (upsert by id)
+      parameters:
+        - name: memoryId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DbMemoryItem'
+      responses:
+        '200':
+          description: Memory item saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DbMemoryItem'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      tags: [data]
+      operationId: deleteMemory
+      summary: Delete a memory item
+      parameters:
+        - name: memoryId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Not your memory item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Memory item not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /projects/{projectId}/history:
+    get:
+      tags: [data]
+      operationId: listSessionHistory
+      summary: List session history for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: History listed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [history]
+                properties:
+                  history:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DbSessionHistory'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    post:
+      tags: [data]
+      operationId: createSessionHistory
+      summary: Save a session history entry
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DbSessionHistory'
+      responses:
+        '200':
+          description: History entry saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DbSessionHistory'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /sync:
+    post:
+      tags: [data]
+      operationId: syncData
+      summary: Bulk upsert all user data from localStorage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncBody'
+      responses:
+        '200':
+          description: Sync complete.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResult'
+        '401':
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
 components:
   parameters:
     AuthorizationSessionHeader:
@@ -401,3 +669,90 @@ components:
       properties:
         content:
           type: string
+
+    # ── Data schemas ─────────────────────────────────────────────────
+    DbProject:
+      type: object
+      required: [id, name, type, categories, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        categories:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    DbMemoryItem:
+      type: object
+      required: [id, projectId, text, category, importanceLevel, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        text:
+          type: string
+        category:
+          type: string
+        importanceLevel:
+          type: string
+          enum: [must-include, useful-context, archive-reference]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    DbSessionHistory:
+      type: object
+      required: [id, projectId, rawNotes, suggestions, approvedCount, createdAt]
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        rawNotes:
+          type: string
+        suggestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AiSuggestion'
+        approvedCount:
+          type: integer
+        createdAt:
+          type: string
+
+    SyncBody:
+      type: object
+      required: [projects, memories, history]
+      properties:
+        projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/DbProject'
+        memories:
+          type: array
+          items:
+            $ref: '#/components/schemas/DbMemoryItem'
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/DbSessionHistory'
+
+    SyncResult:
+      type: object
+      required: [syncedProjects, syncedMemories, syncedHistory]
+      properties:
+        syncedProjects:
+          type: integer
+        syncedMemories:
+          type: integer
+        syncedHistory:
+          type: integer

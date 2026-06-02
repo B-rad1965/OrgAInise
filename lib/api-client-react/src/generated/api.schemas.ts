@@ -122,6 +122,55 @@ export interface ContextBlockResult {
   content: string;
 }
 
+export interface DbProject {
+  id: string;
+  name: string;
+  type: string;
+  categories: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DbMemoryItemImportanceLevel = typeof DbMemoryItemImportanceLevel[keyof typeof DbMemoryItemImportanceLevel];
+
+
+export const DbMemoryItemImportanceLevel = {
+  'must-include': 'must-include',
+  'useful-context': 'useful-context',
+  'archive-reference': 'archive-reference',
+} as const;
+
+export interface DbMemoryItem {
+  id: string;
+  projectId: string;
+  text: string;
+  category: string;
+  importanceLevel: DbMemoryItemImportanceLevel;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DbSessionHistory {
+  id: string;
+  projectId: string;
+  rawNotes: string;
+  suggestions: AiSuggestion[];
+  approvedCount: number;
+  createdAt: string;
+}
+
+export interface SyncBody {
+  projects: DbProject[];
+  memories: DbMemoryItem[];
+  history: DbSessionHistory[];
+}
+
+export interface SyncResult {
+  syncedProjects: number;
+  syncedMemories: number;
+  syncedHistory: number;
+}
+
 /**
  * Opaque session token — `Bearer <sid>`.
  */
@@ -138,5 +187,17 @@ export type HandleBrowserLoginCallbackParams = {
 code?: string;
 state?: string;
 iss?: string;
+};
+
+export type ListProjects200 = {
+  projects: DbProject[];
+};
+
+export type ListMemories200 = {
+  memories: DbMemoryItem[];
+};
+
+export type ListSessionHistory200 = {
+  history: DbSessionHistory[];
 };
 

@@ -145,3 +145,211 @@ export const LogoutMobileSessionResponse = zod.object({
 })
 
 
+/**
+ * @summary List all projects for the authenticated user
+ */
+export const ListProjectsResponse = zod.object({
+  "projects": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "type": zod.string(),
+  "categories": zod.array(zod.string()),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create or update a project (upsert by id)
+ */
+export const UpsertProjectBody = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "type": zod.string(),
+  "categories": zod.array(zod.string()),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+export const UpsertProjectResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "type": zod.string(),
+  "categories": zod.array(zod.string()),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a project and all its data
+ */
+export const DeleteProjectParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+
+/**
+ * @summary List memories for a project
+ */
+export const ListMemoriesParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const ListMemoriesResponse = zod.object({
+  "memories": zod.array(zod.object({
+  "id": zod.string(),
+  "projectId": zod.string(),
+  "text": zod.string(),
+  "category": zod.string(),
+  "importanceLevel": zod.enum(['must-include', 'useful-context', 'archive-reference']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Create or update a memory item (upsert by id)
+ */
+export const UpsertMemoryParams = zod.object({
+  "memoryId": zod.coerce.string()
+})
+
+export const UpsertMemoryBody = zod.object({
+  "id": zod.string(),
+  "projectId": zod.string(),
+  "text": zod.string(),
+  "category": zod.string(),
+  "importanceLevel": zod.enum(['must-include', 'useful-context', 'archive-reference']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+export const UpsertMemoryResponse = zod.object({
+  "id": zod.string(),
+  "projectId": zod.string(),
+  "text": zod.string(),
+  "category": zod.string(),
+  "importanceLevel": zod.enum(['must-include', 'useful-context', 'archive-reference']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a memory item
+ */
+export const DeleteMemoryParams = zod.object({
+  "memoryId": zod.coerce.string()
+})
+
+
+/**
+ * @summary List session history for a project
+ */
+export const ListSessionHistoryParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const ListSessionHistoryResponse = zod.object({
+  "history": zod.array(zod.object({
+  "id": zod.string(),
+  "projectId": zod.string(),
+  "rawNotes": zod.string(),
+  "suggestions": zod.array(zod.object({
+  "suggestedText": zod.string(),
+  "category": zod.string(),
+  "importanceLevel": zod.enum(['must-include', 'useful-context', 'archive-reference']),
+  "reason": zod.string(),
+  "conflictNote": zod.string().nullish()
+})),
+  "approvedCount": zod.number(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Save a session history entry
+ */
+export const CreateSessionHistoryParams = zod.object({
+  "projectId": zod.coerce.string()
+})
+
+export const CreateSessionHistoryBody = zod.object({
+  "id": zod.string(),
+  "projectId": zod.string(),
+  "rawNotes": zod.string(),
+  "suggestions": zod.array(zod.object({
+  "suggestedText": zod.string(),
+  "category": zod.string(),
+  "importanceLevel": zod.enum(['must-include', 'useful-context', 'archive-reference']),
+  "reason": zod.string(),
+  "conflictNote": zod.string().nullish()
+})),
+  "approvedCount": zod.number(),
+  "createdAt": zod.string()
+})
+
+export const CreateSessionHistoryResponse = zod.object({
+  "id": zod.string(),
+  "projectId": zod.string(),
+  "rawNotes": zod.string(),
+  "suggestions": zod.array(zod.object({
+  "suggestedText": zod.string(),
+  "category": zod.string(),
+  "importanceLevel": zod.enum(['must-include', 'useful-context', 'archive-reference']),
+  "reason": zod.string(),
+  "conflictNote": zod.string().nullish()
+})),
+  "approvedCount": zod.number(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Bulk upsert all user data from localStorage
+ */
+export const SyncDataBody = zod.object({
+  "projects": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "type": zod.string(),
+  "categories": zod.array(zod.string()),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "memories": zod.array(zod.object({
+  "id": zod.string(),
+  "projectId": zod.string(),
+  "text": zod.string(),
+  "category": zod.string(),
+  "importanceLevel": zod.enum(['must-include', 'useful-context', 'archive-reference']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "history": zod.array(zod.object({
+  "id": zod.string(),
+  "projectId": zod.string(),
+  "rawNotes": zod.string(),
+  "suggestions": zod.array(zod.object({
+  "suggestedText": zod.string(),
+  "category": zod.string(),
+  "importanceLevel": zod.enum(['must-include', 'useful-context', 'archive-reference']),
+  "reason": zod.string(),
+  "conflictNote": zod.string().nullish()
+})),
+  "approvedCount": zod.number(),
+  "createdAt": zod.string()
+}))
+})
+
+export const SyncDataResponse = zod.object({
+  "syncedProjects": zod.number(),
+  "syncedMemories": zod.number(),
+  "syncedHistory": zod.number()
+})
+
+
