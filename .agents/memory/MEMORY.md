@@ -1,0 +1,4 @@
+- [Dual-write pattern](dual-write-pattern.md) — localStorage-first sync design; apiFetch is always fire-and-forget; DOM event for UX feedback.
+- [Replit Auth hook](replit-auth-hook.md) — useAuth() is standalone fetch-based (no context); safe to call anywhere; always starts with isLoading=true.
+- [Express typed params](express-typed-params.md) — @types/express types req.params values as string|string[]; fix with Request<{id:string}> generics.
+- [Orval codegen naming](orval-codegen-naming.md) — generated Zod names follow PascalCase(operationId)Body / PascalCase(operationId)Response pattern.

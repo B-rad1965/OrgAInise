@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { Plus, BrainCircuit, LayoutDashboard, Cloud, CloudOff, Loader2, Save, AlertTriangle, LogIn, LogOut, User } from "lucide-react";
+import { Plus, BrainCircuit, LayoutDashboard, Cloud, CloudOff, Loader2, Save, AlertTriangle, LogIn, LogOut, User, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSaveStatus } from "@/hooks/use-save-status";
 import { checkStorageHealth, saveAll } from "@/lib/storage";
@@ -9,9 +9,11 @@ import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@workspace/replit-auth-web";
 
+const SYNC_DONE_KEY = "orgainise_db_synced";
+
 /* ─── Save status chip ───────────────────────────────────────────── */
 function SaveChip() {
-  const { status, lastSaved, errorMsg } = useSaveStatus();
+  const { status, lastSaved } = useSaveStatus();
 
   if (status === 'idle' && !lastSaved) return null;
 
@@ -25,7 +27,7 @@ function SaveChip() {
     )}>
       {status === 'saving' && <><Loader2 className="h-3 w-3 animate-spin" />Saving…</>}
       {status === 'saved'  && <><Cloud className="h-3 w-3" />Saved{lastSaved ? ` · ${formatDistanceToNow(lastSaved, { addSuffix: false })} ago` : ''}</>}
-      {status === 'error'  && <><CloudOff className="h-3 w-3" />{errorMsg ?? 'Save failed'}</>}
+      {status === 'error'  && <><CloudOff className="h-3 w-3" /></>}
       {status === 'idle' && lastSaved && (
         <><Cloud className="h-3 w-3 opacity-40" />
           <span className="opacity-40">Last saved {formatDistanceToNow(lastSaved, { addSuffix: true })}</span>
@@ -36,7 +38,7 @@ function SaveChip() {
 }
 
 /* ─── Auth button — completely optional, never blocks access ─────── */
-function AuthButton() {
+function AuthButton({ dbSynced }: { dbSynced: boolean }) {
   const { user, isLoading, isAuthenticated, login, logout } = useAuth();
 
   if (isLoading) return null;
@@ -45,8 +47,14 @@ function AuthButton() {
     const displayName = user.firstName ?? user.email ?? "User";
     return (
       <div className="flex items-center gap-1">
-        <span className="hidden md:inline-flex items-center gap-1.5 text-xs text-muted-foreground px-2 py-1">
-          <User className="h-3 w-3" />
+        <span
+          className="hidden md:inline-flex items-center gap-1.5 text-xs text-muted-foreground px-2 py-1"
+          title={dbSynced ? "Your projects are backed up to the cloud" : ""}
+        >
+          {dbSynced
+            ? <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+            : <User className="h-3 w-3" />
+          }
           {displayName}
         </span>
         <Button
@@ -69,7 +77,7 @@ function AuthButton() {
       size="sm"
       className="text-muted-foreground hover:text-foreground"
       onClick={login}
-      title="Sign in to sync your data"
+      title="Sign in to back up your data"
     >
       <LogIn className="h-3.5 w-3.5 md:mr-1.5" />
       <span className="hidden md:inline">Sign in</span>
@@ -83,8 +91,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { status, errorMsg } = useSaveStatus();
   const [storageBlocked, setStorageBlocked] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
+  const [dbSynced, setDbSynced] = useState(() => sessionStorage.getItem(SYNC_DONE_KEY) === "1");
 
-  // Run health check once on mount
+  // Run storage health check once on mount
   useEffect(() => {
     const result = checkStorageHealth();
     if (!result.ok) {
@@ -92,6 +101,34 @@ export function Layout({ children }: { children: React.ReactNode }) {
       setStorageError(result.error ?? 'localStorage is unavailable');
     }
   }, []);
+
+  // Listen for successful DB sync and show confirmation toast
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { projects, memories, history } = (e as CustomEvent<{
+        projects: number;
+        memories: number;
+        history: number;
+      }>).detail;
+
+      setDbSynced(true);
+
+      const parts: string[] = [];
+      if (projects > 0) parts.push(`${projects} project${projects !== 1 ? "s" : ""}`);
+      if (memories > 0) parts.push(`${memories} memory item${memories !== 1 ? "s" : ""}`);
+      if (history > 0)  parts.push(`${history} session${history !== 1 ? "s" : ""}`);
+
+      toast({
+        title: "Data backed up to your account",
+        description: parts.length > 0
+          ? `${parts.join(", ")} ${parts.length > 1 ? "are" : "is"} now saved to the cloud.`
+          : "Your workspace is now backed up.",
+      });
+    };
+
+    window.addEventListener("orgainise:synced", handler);
+    return () => window.removeEventListener("orgainise:synced", handler);
+  }, [toast]);
 
   const handleSaveNow = () => {
     const result = saveAll();
@@ -145,7 +182,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </Link>
 
             {/* Auth — optional, never blocks access */}
-            <AuthButton />
+            <AuthButton dbSynced={dbSynced} />
           </div>
         </div>
       </header>
