@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { Plus, BrainCircuit, LayoutDashboard, Cloud, CloudOff, Loader2, Save, AlertTriangle } from "lucide-react";
+import { Plus, BrainCircuit, LayoutDashboard, Cloud, CloudOff, Loader2, Save, AlertTriangle, LogIn, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSaveStatus } from "@/hooks/use-save-status";
 import { checkStorageHealth, saveAll } from "@/lib/storage";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@workspace/replit-auth-web";
 
 /* ─── Save status chip ───────────────────────────────────────────── */
 function SaveChip() {
@@ -31,6 +32,48 @@ function SaveChip() {
         </>
       )}
     </span>
+  );
+}
+
+/* ─── Auth button — completely optional, never blocks access ─────── */
+function AuthButton() {
+  const { user, isLoading, isAuthenticated, login, logout } = useAuth();
+
+  if (isLoading) return null;
+
+  if (isAuthenticated && user) {
+    const displayName = user.firstName ?? user.email ?? "User";
+    return (
+      <div className="flex items-center gap-1">
+        <span className="hidden md:inline-flex items-center gap-1.5 text-xs text-muted-foreground px-2 py-1">
+          <User className="h-3 w-3" />
+          {displayName}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground hover:text-foreground"
+          onClick={logout}
+          title="Sign out"
+        >
+          <LogOut className="h-3.5 w-3.5 md:mr-1.5" />
+          <span className="hidden md:inline">Sign out</span>
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="text-muted-foreground hover:text-foreground"
+      onClick={login}
+      title="Sign in to sync your data"
+    >
+      <LogIn className="h-3.5 w-3.5 md:mr-1.5" />
+      <span className="hidden md:inline">Sign in</span>
+    </Button>
   );
 }
 
@@ -100,6 +143,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <span className="hidden md:inline">New Project</span>
               </Button>
             </Link>
+
+            {/* Auth — optional, never blocks access */}
+            <AuthButton />
           </div>
         </div>
       </header>
