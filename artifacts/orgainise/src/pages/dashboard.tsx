@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Plus, BrainCircuit, Database, Clock, Search,
   ArrowUpDown, AlarmClock, ArrowDownAZ, CalendarClock,
-  MoreHorizontal, Copy, Trash2,
+  MoreHorizontal, Copy, Trash2, Download,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -77,6 +77,35 @@ export default function Dashboard() {
     return list;
   }, [projects, search, sort]);
 
+  function handleExport() {
+    const allProjects = Storage.getProjects();
+    const allMemories = Storage.getMemories();
+    const allHistory  = allProjects.flatMap(p => Storage.getHistory(p.id));
+
+    const backup = {
+      exportedAt: new Date().toISOString(),
+      version: 1,
+      projects: allProjects,
+      memories: allMemories,
+      history:  allHistory,
+    };
+
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `orgainise-backup-${new Date().toISOString().split("T")[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Backup downloaded",
+      description: `${allProjects.length} project(s) · ${allMemories.length} memory item(s) · ${allHistory.length} session(s) exported.`,
+    });
+  }
+
   function handleDuplicate(id: string, name: string, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
@@ -98,11 +127,23 @@ export default function Dashboard() {
   return (
     <Layout>
       <div className="flex flex-col space-y-8 pb-10">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Command Centre</h1>
             <p className="text-muted-foreground mt-1">Keep your projects organized and your AI up to speed.</p>
           </div>
+          {projects.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+              className="gap-2 shrink-0"
+              data-testid="button-export-data"
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Export All Data</span>
+            </Button>
+          )}
         </div>
 
         {projects.length === 0 ? (
