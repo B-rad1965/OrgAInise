@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
-import { useStorage, MemoryItem, generateId, AiSuggestion } from "@/lib/storage";
+import { MemoryItem, generateId, AiSuggestion } from "@/lib/storage";
+import { useSyncedStorage as useStorage } from "@/lib/synced-storage";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";

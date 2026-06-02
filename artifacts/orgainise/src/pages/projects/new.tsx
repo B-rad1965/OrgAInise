@@ -10,7 +10,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, X, ArrowRight, Save, LayoutTemplate } from "lucide-react";
-import { generateId, useStorage, Project } from "@/lib/storage";
+import { generateId, Project } from "@/lib/storage";
+import { useSyncedStorage as useStorage } from "@/lib/synced-storage";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";

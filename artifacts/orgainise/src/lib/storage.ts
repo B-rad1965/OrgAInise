@@ -185,6 +185,9 @@ export const Storage = {
   },
 
   /* History */
+  getAllHistory: (): SessionHistory[] =>
+    readData<SessionHistory[]>(STORAGE_KEYS.HISTORY, []),
+
   getHistory: (projectId: string): SessionHistory[] =>
     readData<SessionHistory[]>(STORAGE_KEYS.HISTORY, [])
       .filter(h => h.projectId === projectId)

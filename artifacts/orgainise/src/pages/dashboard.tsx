@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useStorage } from "@/lib/storage";
+import { useSyncedStorage as useStorage } from "@/lib/synced-storage";
 import { Link, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
