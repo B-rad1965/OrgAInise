@@ -46,6 +46,21 @@ router.post("/ai/analyze-session", async (req, res): Promise<void> => {
           .join("\n")
       : "No existing memory yet.";
 
+  const storyDnaGuidance = projectType === "Writing / Worldbuilding" ? `
+
+WRITING / WORLDBUILDING — Story DNA guidance:
+When the session notes contain any of the following, capture them under the "Story DNA" category and mark them "must-include":
+- Character Wounds: what a character secretly fears, emotional pain shaping their choices, the vulnerability driving their arc.
+- Character Desires: what a character deeply wants — hidden needs, longings, hopes they may not voice.
+- Relationship Dynamics: why two characters work emotionally, the tension between them, what each gives the other that no one else can, the contrast that creates chemistry.
+- Emotional Engines: the core fear/desire/wound/contradiction driving a relationship or plot thread. E.g. "Aurora fears getting close. Huldar fears never being close at all."
+- Symbolism: objects, animals, places, colors carrying deeper meaning. E.g. "The White Wolf represents destiny and unseen forces guiding Huldar and Aurora."
+- Story Breakthroughs: newly discovered insights that change how the story, characters, or relationships should be understood. Treat these as high-value context even when not concrete plot facts.
+- Theme Statements: larger truths or philosophical ideas, poetic contrasts, emotional summaries emerging from the story.
+- Signature Lines / Relationship Truths: important phrasing that captures the emotional heart. E.g. "He anchors her. She awakens him."
+
+Story DNA captures the emotional architecture of the story — not just what happened, but why it works. Prioritize meaning over brevity for this category.` : "";
+
   const systemPrompt = `You are an AI project memory assistant for OrgAInise. Your job is to analyze session notes and extract important information worth saving as project memory.
 
 Rules:
@@ -55,7 +70,7 @@ Rules:
 - Keep suggestions concise and direct.
 - Never save automatically — only return suggestions for the user to review.
 - Map each suggestion to one of the provided categories.
-- Return ONLY valid JSON matching the schema, no prose outside JSON.`;
+- Return ONLY valid JSON matching the schema, no prose outside JSON.${storyDnaGuidance}`;
 
   const userPrompt = `Project: "${projectName}" (${projectType})
 Categories: ${categories.join(", ")}
@@ -67,7 +82,7 @@ Session notes to analyze:
 ${sessionNotes}
 
 Return a JSON object with a "suggestions" array. Each suggestion object must have:
-- suggestedText: string (concise, clear fact/decision/rule)
+- suggestedText: string (concise, clear fact/decision/rule; for Story DNA items, preserve the full emotional truth — do not over-compress)
 - category: string (must be one of the provided categories)
 - importanceLevel: "must-include" | "useful-context" | "archive-reference"
 - reason: string (why this is worth saving)
@@ -183,6 +198,12 @@ router.post("/ai/generate-context", async (req, res): Promise<void> => {
     .map(([cat, items]) => `${cat.toUpperCase()}:\n${items.map((t) => `- ${t}`).join("\n")}`)
     .join("\n\n");
 
+  const hasStoryDna = projectType === "Writing / Worldbuilding" && selectedCategories.includes("Story DNA");
+
+  const storyDnaOutputGuidance = hasStoryDna ? `
+- STORY DNA section: do NOT compress or summarize into bullet fragments. Preserve the full emotional truth of each item — relationship dynamics, symbolic meanings, signature lines, and breakthroughs must keep their original power. It is better to have a few complete, resonant statements than many shallow fragments.
+- Distinguish Story DNA clearly from plot facts: Story DNA answers "why does this work emotionally?" not "what happened?".` : "";
+
   const systemPrompt = `You are an AI assistant generating a project context block for OrgAInise. The context block will be pasted into another AI chat to quickly bring the model up to speed on a project.
 
 Rules:
@@ -192,7 +213,7 @@ Rules:
 - Start with PROJECT and TYPE.
 - Only include categories that have content.
 - Make it easy to read and act on. Short, punchy sentences.
-- Return ONLY the formatted context block text, no explanation outside it.`;
+- Return ONLY the formatted context block text, no explanation outside it.${storyDnaOutputGuidance}`;
 
   const userPrompt = `Generate a context block (~${targetWords} words) for this project:
 
@@ -205,7 +226,7 @@ ${memoryText}
 Format:
 PROJECT: ${projectName}
 TYPE: ${projectType}
-[then each category with its content, using uppercase category names as headers]`;
+[then each category with its content, using uppercase category names as headers${hasStoryDna ? "; for the STORY DNA section, preserve emotional truths in full — do not reduce them to bare facts" : ""}]`;
 
   try {
     const completion = await openai.chat.completions.create({

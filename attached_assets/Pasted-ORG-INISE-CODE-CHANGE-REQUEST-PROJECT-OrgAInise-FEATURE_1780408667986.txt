@@ -1,0 +1,85 @@
+ORGАINISE CODE CHANGE REQUEST
+PROJECT: OrgAInise
+FEATURE: Writing Project Story DNA Capture
+
+We discovered that simply summarizing writing/worldbuilding projects by facts loses the most important creative material. Current generated context blocks correctly capture character facts, plot points, and worldbuilding details, but they often miss the deeper emotional engine of the story.
+
+Please add **Story DNA** as a default standard category for all Writing / Worldbuilding projects.
+
+Story DNA should capture the deeper creative discoveries that define why the story works emotionally, not just what happened.
+
+For Writing / Worldbuilding projects, when generating or updating project context, the AI should actively look for and preserve:
+
+1. **Character Wounds**
+
+* What does a character secretly fear?
+* What emotional pain shapes their choices?
+* What vulnerability drives their arc?
+
+2. **Character Desires**
+
+* What does the character deeply want, even if they do not say it?
+* What hope, longing, or hidden need motivates them?
+
+3. **Relationship Dynamics**
+
+* Why do two characters work together emotionally?
+* What is the tension between them?
+* What does each character give the other that no one else can?
+* What emotional contrast creates chemistry?
+
+4. **Emotional Engines**
+
+* What core fear, desire, wound, or contradiction drives a relationship or plot thread?
+* Example: “Aurora fears getting close. Huldar fears never being close at all.”
+
+5. **Symbolism**
+
+* What objects, animals, places, colors, or recurring images carry deeper meaning?
+* Example: “The White Wolf is not a pet or companion. It is a witness, representing destiny, nature’s will, and unseen forces guiding Huldar and Aurora.”
+
+6. **Story Breakthroughs**
+
+* Any newly discovered insight that changes how the story, characters, or relationships should be understood.
+* These should be treated as high-value context, even if they are not concrete plot facts.
+
+7. **Theme Statements**
+
+* Larger truths or philosophical ideas emerging from the story.
+* These may be expressed as poetic lines, contrasts, or emotional summaries.
+
+8. **Signature Lines / Relationship Truths**
+
+* Preserve important phrasing that captures the emotional heart of a character or relationship.
+* Example:
+
+  * “He anchors her. She awakens him.”
+  * “Aurora sees through people. Huldar sees through situations.”
+  * “Huldar is force. Aurora is truth.”
+  * “Aurora loosens the bark on the great oak.”
+
+Implementation goal:
+When the user generates a context block for a Writing / Worldbuilding project, the AI should not only summarize Characters, Plot, and Worldbuilding. It should also generate a **Story DNA** section that captures the emotional architecture, chemistry, symbolic meaning, and creative breakthroughs of the project.
+
+This category should prioritize meaning over brevity. It is better for Story DNA to preserve a few powerful emotional truths than to list many shallow facts.
+
+Recommended default Writing / Worldbuilding categories:
+
+* Characters
+* Plot Threads
+* Worldbuilding
+* Lore / Magic / Rules
+* Locations
+* Themes
+* Story DNA
+* Open Questions
+* Canon Notes
+* Dialogue / Signature Lines
+
+Acceptance Criteria:
+
+* New Writing / Worldbuilding projects include Story DNA by default.
+* Generated context blocks include Story DNA when relevant material exists.
+* Story DNA captures emotional truths, relationship engines, symbolism, themes, and creative breakthroughs.
+* Story DNA should not merely duplicate plot or character facts.
+* The AI should distinguish between ordinary facts and high-value story insights.
