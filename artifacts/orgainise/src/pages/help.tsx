@@ -2,6 +2,17 @@ import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { BrainCircuit, FolderPlus, Sparkles, Tag, Zap, RefreshCw, RotateCcw } from "lucide-react";
 import { resetOnboarding } from "@/lib/onboarding";
 
@@ -59,7 +70,7 @@ const HELP_TIPS = [
 export default function HelpPage() {
   const [, setLocation] = useLocation();
 
-  function handleRestartTutorial() {
+  function doRestart() {
     resetOnboarding();
     window.dispatchEvent(new CustomEvent("orgainise:restart-tutorial"));
     setLocation("/");
@@ -120,10 +131,26 @@ export default function HelpPage() {
             <p className="font-medium text-sm">Want to run through the setup again?</p>
             <p className="text-xs text-muted-foreground mt-0.5">The guided setup walks you through creating your first project.</p>
           </div>
-          <Button variant="outline" onClick={handleRestartTutorial} className="gap-2 shrink-0">
-            <RotateCcw className="h-4 w-4" />
-            Restart Tutorial
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="default" className="gap-2 shrink-0">
+                <RotateCcw className="h-4 w-4" />
+                Restart Tutorial
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Restart onboarding tutorial?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will clear your tutorial progress and show the welcome guide again from the beginning.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={doRestart}>Restart</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
     </Layout>

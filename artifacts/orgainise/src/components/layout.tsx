@@ -169,9 +169,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </Button>
 
             <Link href="/help">
-              <Button variant="ghost" size="sm" className="flex text-muted-foreground hover:text-foreground" title="How OrgAInise works">
-                <HelpCircle className="h-4 w-4 md:mr-2" />
-                <span className="hidden md:inline">Help</span>
+              <Button variant="outline" size="sm" className="flex gap-1.5 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary hover:border-primary/70">
+                <HelpCircle className="h-4 w-4" />
+                <span>Help</span>
               </Button>
             </Link>
 
