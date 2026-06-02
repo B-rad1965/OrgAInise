@@ -28,6 +28,7 @@ import {
 import { formatDistanceToNow, format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { HelpTip } from "@/components/ui/help-tip";
 
 /* ─── InlineEdit ─────────────────────────────────────────────────── */
 function InlineEdit({
@@ -364,7 +365,10 @@ export default function ProjectDetail() {
           {/* ── MEMORY TAB ─────────────────────────────────────── */}
           <TabsContent value="memory" className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold">Knowledge Graph</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-semibold">Knowledge Graph</h2>
+                <HelpTip text="Save the facts, decisions, updates, and discoveries that matter. OrgAInise uses these to build better context for your AI conversations." />
+              </div>
               <Dialog open={isAddMemoryOpen} onOpenChange={setIsAddMemoryOpen}>
                 <DialogTrigger asChild>
                   <Button onClick={() => {
@@ -389,7 +393,10 @@ export default function ProjectDetail() {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Category</Label>
+                        <div className="flex items-center gap-1.5">
+                          <Label>Category</Label>
+                          <HelpTip text="Categories tell the AI what kind of information this is. Good categories help the AI preserve the right meaning." side="right" />
+                        </div>
                         <Select value={memoryForm.category} onValueChange={v => setMemoryForm({ ...memoryForm, category: v })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -398,7 +405,10 @@ export default function ProjectDetail() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>Importance</Label>
+                        <div className="flex items-center gap-1.5">
+                          <Label>Importance</Label>
+                          <HelpTip text="Use higher importance for information the AI should almost always remember. Archive items are kept for history but excluded from context by default." side="right" />
+                        </div>
                         <Select value={memoryForm.importanceLevel} onValueChange={(v: any) => setMemoryForm({ ...memoryForm, importanceLevel: v })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -535,7 +545,10 @@ export default function ProjectDetail() {
             {!reviewingSuggestions ? (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-xl font-semibold mb-2">Process Session Transcript</h2>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h2 className="text-xl font-semibold">Process Session Transcript</h2>
+                    <HelpTip text="Paste any notes or chat logs from your latest work session. The AI extracts the important facts for you to approve — nothing is saved without your review." />
+                  </div>
                   <p className="text-muted-foreground text-sm">Paste the conversation or notes from your latest AI session. The system will extract facts and updates.</p>
                 </div>
                 <Textarea placeholder="Paste chat logs, commit notes, or random thoughts here..."
@@ -616,7 +629,10 @@ export default function ProjectDetail() {
             <div className="grid md:grid-cols-[300px_1fr] gap-8">
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-lg font-semibold mb-4">Context Generator</h2>
+                  <div className="flex items-center gap-2 mb-4">
+                    <h2 className="text-lg font-semibold">Context Generator</h2>
+                    <HelpTip text="This creates a clean summary you can paste into ChatGPT or another AI so it understands your project quickly." />
+                  </div>
                   <p className="text-sm text-muted-foreground mb-6">Compile your memories into an optimised system prompt.</p>
                 </div>
                 <div className="space-y-3">

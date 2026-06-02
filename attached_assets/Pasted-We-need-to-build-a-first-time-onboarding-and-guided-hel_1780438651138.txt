@@ -1,0 +1,171 @@
+We need to build a first-time onboarding and guided help system for OrgAInise.
+
+Goal:
+A brand-new user should understand within 60 seconds:
+1. What OrgAInise does
+2. Why it is useful
+3. How to create their first project
+4. How to add memories/notes
+5. How to generate a context block for AI
+
+Core explanation:
+OrgAInise helps users stop re-explaining their projects to AI. It stores important project memories, decisions, notes, and “DNA” so the user can generate a fresh context block and paste it into ChatGPT or another AI conversation.
+
+Please implement this carefully without breaking current functionality.
+
+Requirements:
+
+1. Add a first-time onboarding screen/modal
+- Show only for new users or users who have not completed onboarding.
+- Store onboarding completion in localStorage for guests.
+- If logged-in user support already exists, prepare the code so onboarding completion can later be stored per user, but do not require that now.
+- Include a “Skip for now” button.
+- Include a “Don’t show again” / “Get started” completion action.
+
+Opening copy:
+
+Title:
+“Stop re-explaining your projects to AI.”
+
+Body:
+“OrgAInise helps you build a living project brain. Save the important notes, decisions, discoveries, and project DNA that an AI needs to understand what you’re working on. Then generate a clean context block anytime and paste it into ChatGPT or another AI conversation to get back on track fast.”
+
+Primary button:
+“Create My First Project”
+
+Secondary:
+“Show me how it works”
+
+2. Add a simple guided onboarding flow
+
+Step 1: Choose project type
+Options:
+- Writing / Worldbuilding
+- Business / Startup
+- Gardening / DIY
+- Trading / Investing
+- Research / Learning
+- Other
+
+When selected, use the project type to suggest starter categories.
+
+Suggested starter categories:
+
+Writing / Worldbuilding:
+- Characters
+- Worldbuilding
+- Plot
+- Story DNA
+- Open Questions
+- Session History
+
+Business / Startup:
+- Vision
+- Customer Pain
+- Features
+- Business DNA
+- Revenue Model
+- Open Questions
+
+Gardening / DIY:
+- Garden Goals
+- Layout / Design
+- Plants
+- Garden DNA
+- Progress Notes
+- Open Questions
+
+Trading / Investing:
+- Watchlist
+- Positions
+- Strategy Rules
+- Trading DNA
+- Lessons Learned
+- Market Thesis
+
+Research / Learning:
+- Key Concepts
+- Sources
+- Questions
+- Research DNA
+- Insights
+- Next Steps
+
+Other:
+- Notes
+- Project DNA
+- Decisions
+- Open Questions
+- Next Steps
+
+3. Add helpful tooltips or guide prompts for major functions
+
+Use a reusable helper component/function if possible, something like:
+- HelpTip
+- GuidePrompt
+- OnboardingHint
+
+Each major action should have a short plain-English explanation.
+
+Examples:
+
+New Project:
+“Create a separate project brain for each thing you want AI to remember.”
+
+Add Note / Add Memory:
+“Save important information, discoveries, decisions, or updates here. OrgAInise uses these to build better context later.”
+
+Category:
+“Categories tell the AI what kind of information this is. Good categories help the AI preserve the right meaning.”
+
+Importance:
+“Use higher importance for information the AI should almost always remember.”
+
+Story DNA / Project DNA:
+“DNA is the deeper meaning of the project: themes, emotional engines, core principles, or big truths that help reconstruct the whole project later.”
+
+Generate Context Block:
+“This creates a clean summary you can paste into ChatGPT or another AI so it understands your project quickly.”
+
+Export All Data:
+“Download a backup of your projects, memories, and history.”
+
+4. Add an optional “How OrgAInise Works” tab or help page
+
+Content should be short and beginner-friendly.
+
+Suggested structure:
+
+Title:
+“How OrgAInise Works”
+
+Sections:
+1. Create a project
+“Each project is its own living memory bank.”
+
+2. Add memories
+“Save the facts, decisions, updates, and discoveries that matter.”
+
+3. Use categories
+“Categories teach the AI what to focus on.”
+
+4. Generate context
+“Create a compact block that helps AI catch up fast.”
+
+5. Keep refining
+“As your project changes, add new notes and let OrgAInise update the project brain.”
+
+5. Keep UI clean
+- Do not clutter the dashboard.
+- Use collapsible help text, small info icons, or a dedicated help/onboarding modal.
+- Existing users should not be forced through onboarding unless they reset it.
+- Add a “Restart Tutorial” button somewhere sensible, such as Help or Settings.
+
+6. Safety / implementation constraints
+- Do not remove or rewrite current project, memory, context generation, export, auth, sync, or localStorage behavior.
+- This should be additive.
+- Preserve the current clean/simple UI.
+- After implementation, run type checks and basic app verification.
+- Stop after this onboarding/help system is implemented and summarize exactly what changed.
+
+Please build this as Step 8: First-Time User Onboarding + Guided Help.

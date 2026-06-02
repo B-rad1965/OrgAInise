@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { Plus, BrainCircuit, LayoutDashboard, Cloud, CloudOff, Loader2, Save, AlertTriangle, LogIn, LogOut, User, CheckCircle2 } from "lucide-react";
+import { Plus, BrainCircuit, LayoutDashboard, Cloud, CloudOff, Loader2, Save, AlertTriangle, LogIn, LogOut, User, CheckCircle2, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSaveStatus } from "@/hooks/use-save-status";
 import { checkStorageHealth, saveAll } from "@/lib/storage";
@@ -167,6 +167,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <Save className="h-3.5 w-3.5" />
               <span className="hidden md:inline">Save Now</span>
             </Button>
+
+            <Link href="/help">
+              <Button variant="ghost" size="sm" className="flex text-muted-foreground hover:text-foreground" title="How OrgAInise works">
+                <HelpCircle className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">Help</span>
+              </Button>
+            </Link>
 
             <Link href="/">
               <Button variant="ghost" size="sm" className="flex">
