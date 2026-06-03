@@ -140,14 +140,19 @@ export function OnboardingModal({ open, onClose }: OnboardingModalProps) {
               </div>
             </div>
 
-            <h1 className="text-2xl font-bold tracking-tight text-center mb-4">
+            <h1 className="text-2xl font-bold tracking-tight text-center mb-1">
               Stop re-explaining your projects to AI.
             </h1>
+            <p className="text-primary/80 font-medium text-center text-sm mb-5">
+              Build a living project brain.
+            </p>
             <p className="text-muted-foreground text-center text-sm leading-relaxed mb-8">
-              OrgAInise helps you build a living project brain. Save the important notes, decisions,
-              discoveries, and project DNA that an AI needs to understand what you're working on.
-              Then generate a clean context block anytime and paste it into ChatGPT or another AI
-              conversation to get back on track fast.
+              Writing. Trading. Gardening. Research. Business. Anything that evolves over time.
+              <br /><br />
+              OrgAInise helps you preserve the important notes, decisions, discoveries, lessons,
+              and project DNA that AI needs to understand what you're working on. Instead of
+              repeatedly catching AI up from scratch, generate a clean context block anytime
+              and instantly restore project continuity.
             </p>
 
             <div className="space-y-3">

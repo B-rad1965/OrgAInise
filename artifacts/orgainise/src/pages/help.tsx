@@ -67,6 +67,27 @@ const HELP_TIPS = [
   },
 ];
 
+const USE_CASES = [
+  {
+    emoji: "📖",
+    title: "Writing & Worldbuilding",
+    tracks: ["Characters", "Worldbuilding", "Plot Threads", "Story DNA", "Canon", "Session Notes"],
+    benefit: "Generate context blocks that help AI continue your story without losing continuity.",
+  },
+  {
+    emoji: "📈",
+    title: "Trading & Investing",
+    tracks: ["Watchlists", "Positions", "Trading Rules", "Lessons Learned", "Market Thesis", "Research"],
+    benefit: "Generate context blocks that instantly restore your trading framework and current thinking.",
+  },
+  {
+    emoji: "🌱",
+    title: "Gardening & DIY Projects",
+    tracks: ["Design Goals", "Layout Plans", "Plant Choices", "Progress Notes", "Lessons Learned", "Project DNA"],
+    benefit: "Generate context blocks that help AI understand the full history and vision of your project.",
+  },
+];
+
 export default function HelpPage() {
   const [, setLocation] = useLocation();
 
@@ -78,7 +99,7 @@ export default function HelpPage() {
 
   return (
     <Layout>
-      <div className="max-w-2xl mx-auto pb-16 space-y-10">
+      <div className="max-w-2xl mx-auto pb-16 space-y-12">
 
         {/* Header */}
         <div className="flex items-start justify-between gap-4 pt-2">
@@ -95,21 +116,59 @@ export default function HelpPage() {
           </div>
         </div>
 
+        {/* What Can I Use OrgAInise For? */}
+        <div>
+          <h2 className="text-xl font-semibold mb-1">What Can I Use OrgAInise For?</h2>
+          <p className="text-sm text-muted-foreground mb-5">
+            Anything with a history worth remembering — creative projects, research, trading, side businesses, personal development, and more.
+          </p>
+          <div className="grid sm:grid-cols-3 gap-4">
+            {USE_CASES.map(({ emoji, title, tracks, benefit }) => (
+              <div
+                key={title}
+                className="rounded-xl border border-border/60 bg-muted/20 p-5 flex flex-col gap-4"
+              >
+                <div>
+                  <div className="text-2xl mb-2">{emoji}</div>
+                  <h3 className="font-semibold text-base leading-tight">{title}</h3>
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-2">Keep track of</p>
+                  <ul className="space-y-1">
+                    {tracks.map(t => (
+                      <li key={t} className="flex items-center gap-2 text-sm text-foreground/80">
+                        <span className="h-1 w-1 rounded-full bg-primary/60 shrink-0" />
+                        {t}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed border-t border-border/40 pt-3">
+                  {benefit}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* How it works steps */}
-        <div className="space-y-4">
-          {HOW_IT_WORKS.map(({ icon: Icon, title, body }) => (
-            <Card key={title} className="border-border/50 hover-elevate transition-colors">
-              <CardContent className="p-5 flex gap-4">
-                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <Icon className="h-5 w-5 text-primary" />
-                </div>
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-base">{title}</h3>
-                  <p className="text-muted-foreground text-sm leading-relaxed">{body}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Step by Step</h2>
+          <div className="space-y-4">
+            {HOW_IT_WORKS.map(({ icon: Icon, title, body }) => (
+              <Card key={title} className="border-border/50 hover-elevate transition-colors">
+                <CardContent className="p-5 flex gap-4">
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <Icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="font-semibold text-base">{title}</h3>
+                    <p className="text-muted-foreground text-sm leading-relaxed">{body}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
 
         {/* Glossary */}

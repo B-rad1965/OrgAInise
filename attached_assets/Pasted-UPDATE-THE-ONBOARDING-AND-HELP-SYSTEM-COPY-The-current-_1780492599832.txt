@@ -1,0 +1,142 @@
+UPDATE THE ONBOARDING AND HELP SYSTEM COPY.
+
+The current onboarding explains the app, but it does not immediately communicate the user's pain point.
+
+Replace the opening messaging with the following structure:
+
+---
+
+## OPENING SCREEN
+
+Headline:
+
+Stop re-explaining your projects to AI.
+
+Subheadline:
+
+Build a living project brain.
+
+Supporting Text:
+
+Writing. Trading. Gardening. Research. Business. Anything that evolves over time.
+
+OrgAInise helps you preserve the important notes, decisions, discoveries, lessons, and project DNA that AI needs to understand what you're working on.
+
+Instead of repeatedly catching AI up from scratch, generate a clean context block anytime and instantly restore project continuity.
+
+Primary Button:
+
+Create My First Project
+
+Secondary Button:
+
+Show Me How It Works
+
+---
+
+## HELP PAGE
+
+Add a section called:
+
+What Can I Use OrgAInise For?
+
+Display three example project cards.
+
+CARD 1
+
+📖 Writing & Worldbuilding
+
+Keep track of:
+
+* Characters
+* Worldbuilding
+* Plot Threads
+* Story DNA
+* Canon
+* Session Notes
+
+Generate context blocks that help AI continue your story without losing continuity.
+
+---
+
+CARD 2
+
+📈 Trading & Investing
+
+Keep track of:
+
+* Watchlists
+* Positions
+* Trading Rules
+* Lessons Learned
+* Market Thesis
+* Research
+
+Generate context blocks that instantly restore your trading framework and current thinking.
+
+---
+
+CARD 3
+
+🌱 Gardening & DIY Projects
+
+Keep track of:
+
+* Design Goals
+* Layout Plans
+* Plant Choices
+* Progress Notes
+* Lessons Learned
+* Project DNA
+
+Generate context blocks that help AI understand the full history and vision of your project.
+
+---
+
+## EXAMPLE PROJECT
+
+Replace the generic example project with a writing-focused example project.
+
+Name:
+
+The Shattered Kingdom
+
+Purpose:
+
+Demonstrate the strongest and most obvious use case for OrgAInise.
+
+Include:
+
+Characters
+Worldbuilding
+Story DNA
+Plot Threads
+Session History
+Generated Context
+
+Use realistic example content.
+
+The goal is for users to immediately understand:
+
+"Oh... this remembers everything important so my AI doesn't lose track."
+
+---
+
+## DESIGN GOAL
+
+Every part of onboarding should answer:
+
+1. Why would I use this?
+2. What belongs here?
+3. What happens next?
+
+The user's path should naturally lead toward:
+
+Create Project
+→ Add Memory
+→ Log Session
+→ Generate Context
+→ Paste Into AI
+→ Experience Continuity
+
+That continuity is the product's core value proposition.
