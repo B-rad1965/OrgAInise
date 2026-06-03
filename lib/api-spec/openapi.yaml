@@ -95,6 +95,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /ai/focused-context:
+    post:
+      operationId: focusedContextBlock
+      tags: [ai]
+      summary: Generate a focused context block for a specific topic
+      description: Searches project memory for a specific query and generates a focused, topic-specific context block
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FocusedContextInput"
+      responses:
+        "200":
+          description: Generated focused context block
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FocusedContextResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /auth/user:
     get:
       tags: [Auth]
@@ -669,6 +701,44 @@ components:
       properties:
         content:
           type: string
+
+    FocusedContextMemoryItem:
+      type: object
+      required: [text, category, importanceLevel, createdAt]
+      properties:
+        text:
+          type: string
+        category:
+          type: string
+        importanceLevel:
+          type: string
+          enum: [must-include, useful-context, archive-reference]
+        createdAt:
+          type: string
+
+    FocusedContextInput:
+      type: object
+      required: [projectName, projectType, query, memoryItems]
+      properties:
+        projectName:
+          type: string
+        projectType:
+          type: string
+        query:
+          type: string
+        memoryItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/FocusedContextMemoryItem"
+
+    FocusedContextResult:
+      type: object
+      required: [content, matchedCount]
+      properties:
+        content:
+          type: string
+        matchedCount:
+          type: integer
 
     # ── Data schemas ─────────────────────────────────────────────────
     DbProject:

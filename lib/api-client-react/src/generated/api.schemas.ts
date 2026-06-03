@@ -122,6 +122,34 @@ export interface ContextBlockResult {
   content: string;
 }
 
+export type FocusedContextMemoryItemImportanceLevel = typeof FocusedContextMemoryItemImportanceLevel[keyof typeof FocusedContextMemoryItemImportanceLevel];
+
+
+export const FocusedContextMemoryItemImportanceLevel = {
+  'must-include': 'must-include',
+  'useful-context': 'useful-context',
+  'archive-reference': 'archive-reference',
+} as const;
+
+export interface FocusedContextMemoryItem {
+  text: string;
+  category: string;
+  importanceLevel: FocusedContextMemoryItemImportanceLevel;
+  createdAt: string;
+}
+
+export interface FocusedContextInput {
+  projectName: string;
+  projectType: string;
+  query: string;
+  memoryItems: FocusedContextMemoryItem[];
+}
+
+export interface FocusedContextResult {
+  content: string;
+  matchedCount: number;
+}
+
 export interface DbProject {
   id: string;
   name: string;

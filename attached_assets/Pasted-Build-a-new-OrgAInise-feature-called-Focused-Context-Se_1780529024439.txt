@@ -1,0 +1,77 @@
+Build a new OrgAInise feature called “Focused Context Search.”
+
+Goal:
+Allow the user to search inside a project for specific information and generate a clean, focused context block only about that topic.
+
+User Flow:
+1. User opens a project.
+2. User enters a search query such as:
+   - “Aurora”
+   - “Huldar and Aurora relationship”
+   - “Krelk”
+   - “Chapter 1”
+   - “shards lore”
+   - “open questions about Kael”
+3. App searches all saved project entries, summaries, canon blocks, notes, and generated context.
+4. App returns a focused context block containing only relevant information.
+
+Output Format:
+The generated block should preserve the existing category structure where useful:
+
+PROJECT:
+FOCUSED TOPIC:
+TYPE:
+
+## Summary
+Brief overview of the requested topic.
+
+## Story DNA
+Only relevant story DNA.
+
+## Character DNA
+Only relevant character details.
+
+## Relationship DNA
+Only relevant relationships.
+
+## Lore / Magic / Rules
+Only relevant lore.
+
+## Canon Events
+Only confirmed events related to the topic.
+
+## Working Theories
+Relevant uncertain ideas. Preserve words like maybe, possible, potentially, might.
+
+## Open Questions
+Unresolved questions related to the topic.
+
+## Writing Guidance
+How future AI should use this focused context.
+
+Important Rules:
+- Do not include unrelated project information.
+- Preserve narrative function, not just facts.
+- If a character or event shapes another major character, include that connection.
+- Distinguish confirmed canon from working theory.
+- Avoid generic summaries.
+- Make the block useful enough that the user can paste it into ChatGPT and continue work on that exact topic.
+- Include source references internally if possible, such as entry title or date, so the user can trace where the information came from.
+
+Example:
+If the user searches “Krelk,” the output should not merely say:
+“Krelk protected Yuna.”
+
+It should say:
+“Krelk is the Koro chief whose decision to protect Yuna established the story’s Fear versus Understanding theme and shaped Yuna’s moral foundation. His choice is one of the most consequential acts in Vealoria.”
+
+Feature Requirements:
+- Add a search bar inside each project.
+- Search should scan full stored text, not only titles.
+- Results should rank by relevance.
+- Add a button: “Generate Focused Context.”
+- Add a copy button for the generated block.
+- Add an optional save button: “Save Focused Context to Project.”
+- If no strong matches are found, return a clear message and suggest broader search terms.
+
+This feature turns OrgAInise from a project notebook into a targeted AI context engine.

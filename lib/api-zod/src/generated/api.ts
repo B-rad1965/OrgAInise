@@ -67,6 +67,28 @@ export const GenerateContextBlockResponse = zod.object({
 
 
 /**
+ * Searches project memory for a specific query and generates a focused, topic-specific context block
+ * @summary Generate a focused context block for a specific topic
+ */
+export const FocusedContextBlockBody = zod.object({
+  "projectName": zod.string(),
+  "projectType": zod.string(),
+  "query": zod.string(),
+  "memoryItems": zod.array(zod.object({
+  "text": zod.string(),
+  "category": zod.string(),
+  "importanceLevel": zod.enum(['must-include', 'useful-context', 'archive-reference']),
+  "createdAt": zod.string()
+}))
+})
+
+export const FocusedContextBlockResponse = zod.object({
+  "content": zod.string(),
+  "matchedCount": zod.number()
+})
+
+
+/**
  * @summary Get the currently authenticated user
  */
 export const GetCurrentAuthUserHeader = zod.object({

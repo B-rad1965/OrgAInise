@@ -29,6 +29,8 @@ import type {
   DbSessionHistory,
   ErrorEnvelope,
   ErrorResponse,
+  FocusedContextInput,
+  FocusedContextResult,
   HandleBrowserLoginCallbackParams,
   HealthStatus,
   ListMemories200,
@@ -275,6 +277,78 @@ export const useGenerateContextBlock = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getGenerateContextBlockMutationOptions(options));
+    }
+
+export const getFocusedContextBlockUrl = () => {
+
+
+
+
+  return `/api/ai/focused-context`
+}
+
+/**
+ * Searches project memory for a specific query and generates a focused, topic-specific context block
+ * @summary Generate a focused context block for a specific topic
+ */
+export const focusedContextBlock = async (focusedContextInput: FocusedContextInput, options?: RequestInit): Promise<FocusedContextResult> => {
+
+  return customFetch<FocusedContextResult>(getFocusedContextBlockUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      focusedContextInput,)
+  }
+);}
+
+
+
+
+export const getFocusedContextBlockMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof focusedContextBlock>>, TError,{data: BodyType<FocusedContextInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof focusedContextBlock>>, TError,{data: BodyType<FocusedContextInput>}, TContext> => {
+
+const mutationKey = ['focusedContextBlock'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof focusedContextBlock>>, {data: BodyType<FocusedContextInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  focusedContextBlock(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FocusedContextBlockMutationResult = NonNullable<Awaited<ReturnType<typeof focusedContextBlock>>>
+    export type FocusedContextBlockMutationBody = BodyType<FocusedContextInput>
+    export type FocusedContextBlockMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Generate a focused context block for a specific topic
+ */
+export const useFocusedContextBlock = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof focusedContextBlock>>, TError,{data: BodyType<FocusedContextInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof focusedContextBlock>>,
+        TError,
+        {data: BodyType<FocusedContextInput>},
+        TContext
+      > => {
+      return useMutation(getFocusedContextBlockMutationOptions(options));
     }
 
 export const getGetCurrentAuthUserUrl = () => {

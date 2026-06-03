@@ -5,6 +5,8 @@ import {
   AnalyzeSessionResponse,
   GenerateContextBlockBody,
   GenerateContextBlockResponse,
+  FocusedContextBlockBody,
+  FocusedContextBlockResponse,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -318,6 +320,153 @@ ${isWriting ? writingFormat : nonWritingFormat}`;
     res.status(503).json({
       error: "Context generation couldn't complete. Please try again shortly.",
     });
+  }
+});
+
+/* ─── Focused Context Search ─────────────────────────────────────── */
+
+router.post("/ai/focused-context", async (req, res): Promise<void> => {
+  const parsed = FocusedContextBlockBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const openai = getOpenAIClient();
+  if (!openai) {
+    res.status(503).json({
+      error: "OpenAI API key is not configured. Add OPENAI_API_KEY to your Replit Secrets to enable focused context.",
+    });
+    return;
+  }
+
+  const { projectName, projectType, query, memoryItems } = parsed.data;
+  const isWriting = projectType === "Writing / Worldbuilding";
+
+  const memoryText = memoryItems
+    .map(item => {
+      const tag = item.importanceLevel === "must-include"
+        ? "[MUST INCLUDE]"
+        : item.importanceLevel === "archive-reference"
+        ? "[ARCHIVE]"
+        : "";
+      const date = item.createdAt
+        ? new Date(item.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+        : "";
+      return `[${item.category}${date ? ` · ${date}` : ""}${tag ? ` · ${tag}` : ""}] ${item.text}`;
+    })
+    .join("\n");
+
+  const writingStructure = isWriting ? `
+Use this output structure (include only sections with relevant content):
+
+PROJECT: ${projectName}
+FOCUSED TOPIC: ${query}
+TYPE: ${projectType}
+
+## Summary
+Brief overview of what is known about this topic from the project memory.
+
+## Story DNA
+Relevant themes, emotional engines, symbolic meanings — specific to this topic. For each, include a Narrative Function note explaining why it matters to THIS story (not a generic description).
+
+## Character DNA
+Each relevant character gets a subsection with: their emotional core (wound, desire, arc), their connection to this topic, and a Narrative Function note — one sentence explaining their specific role in the thematic argument. Never reduce a character to their plot actions alone. If one character's history or wound fundamentally shapes another character's psychology or arc, state that causal link explicitly.
+
+## Relationship DNA
+Relevant relationship dynamics, with a Narrative Function note for each explaining why the dynamic is essential to the story.
+
+## Lore / Magic / Rules
+Confirmed world rules and constraints relevant to this topic.
+
+## Canon Events
+Confirmed events related to this topic. For narratively significant events, include a Narrative Function note explaining what the event means beyond what happened.
+
+## Working Theories
+Relevant speculation — MUST preserve all uncertainty words exactly (maybe, possibly, potentially, perhaps, might, could be). Never convert speculation into fact.
+
+## Open Questions
+Unresolved questions related to this topic.
+
+## Writing Guidance
+How future AI sessions should use this focused context when working on this topic.` : `
+Use this output structure:
+
+PROJECT: ${projectName}
+FOCUSED TOPIC: ${query}
+TYPE: ${projectType}
+
+## Summary
+Brief overview of what is known about this topic from the project memory.
+
+[Then include only the relevant categories from the project, using the category name as a header. Only include categories that have relevant content.]`;
+
+  const systemPrompt = `You are an AI assistant generating a FOCUSED context block for OrgAInise. The user has searched their project memory for a specific topic, character, relationship, or question.
+
+Your job:
+1. Identify which memory items are genuinely relevant to the search query
+2. Generate a focused, useful context block covering only that topic
+3. Count how many distinct memory items you considered relevant (matchedCount)
+
+Rules:
+- Include only information genuinely relevant to the query — no padding with unrelated content
+- Preserve narrative significance, not just facts. A character is more than "the person who did X"
+- Narrative Function notes must be specific to this project — avoid generic phrases like "drives the plot", "represents hope", or "creates conflict". Name the specific characters, tensions, themes, or consequences involved
+- Distinguish confirmed canon from working theory — never convert speculation into confirmed fact
+- Preserve all uncertainty words (maybe, possibly, potentially, perhaps, might, could be) exactly as written
+- After each key piece of information, include a source reference in brackets — the category and date it was saved: [from: Characters · 1 Jan 2024]
+- If no strong matches exist, say so clearly in the Summary section and suggest broader search terms the user might try
+- Return ONLY valid JSON matching the schema: { "content": "...", "matchedCount": N }${writingStructure}`;
+
+  const userPrompt = `Project: "${projectName}" (${projectType})
+Search query: "${query}"
+
+All project memory (${memoryItems.length} items):
+${memoryText}
+
+Identify the relevant items, generate the focused context block, and return JSON with "content" (the formatted block) and "matchedCount" (number of relevant memory items you used).`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.3,
+      max_tokens: 2500,
+    });
+
+    const content = completion.choices[0]?.message?.content;
+    if (!content) {
+      res.status(503).json({ error: "AI returned an empty response. Please try again." });
+      return;
+    }
+
+    let raw: unknown;
+    try {
+      raw = JSON.parse(content);
+    } catch {
+      res.status(503).json({ error: "AI returned invalid JSON. Please try again." });
+      return;
+    }
+
+    const validated = FocusedContextBlockResponse.safeParse(raw);
+    if (!validated.success) {
+      req.log.warn({ content, error: validated.error.message }, "AI focused-context response failed validation");
+      res.status(503).json({ error: "AI response format was unexpected. Please try again." });
+      return;
+    }
+
+    res.json(validated.data);
+  } catch (err: unknown) {
+    req.log.error({ err }, "OpenAI focused-context error");
+    if (err instanceof OpenAI.APIError && err.status === 401) {
+      res.status(503).json({ error: "Invalid OpenAI API key. Check your OPENAI_API_KEY secret." });
+      return;
+    }
+    res.status(503).json({ error: "Focused context search couldn't complete. Please try again shortly." });
   }
 });
 

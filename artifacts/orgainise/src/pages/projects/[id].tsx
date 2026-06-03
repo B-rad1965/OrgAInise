@@ -18,12 +18,12 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useAnalyzeSession, useGenerateContextBlock } from "@workspace/api-client-react";
+import { useAnalyzeSession, useGenerateContextBlock, useFocusedContextBlock } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Trash2, Edit2, Copy, Download, BrainCircuit, Sparkles,
   Clock, CheckCircle2, XCircle, ArrowRight, RefreshCw, Database,
-  Plus, GitMerge, X, Lock,
+  Plus, GitMerge, X, Lock, Search, BookOpen,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -124,6 +124,11 @@ export default function ProjectDetail() {
     () => project?.id === DEMO_PROJECT_ID ? DEMO_GENERATED_CONTEXT : ""
   );
 
+  /* ── focused search ── */
+  const [focusedQuery, setFocusedQuery]     = useState("");
+  const [focusedResult, setFocusedResult]   = useState<{ content: string; matchedCount: number } | null>(null);
+  const [lastFocusedQuery, setLastFocusedQuery] = useState("");
+
   /* ── demo / first-success ── */
   const isDemo = project?.id === DEMO_PROJECT_ID;
   const [contextEverGenerated, setContextEverGenerated] = useState(
@@ -152,6 +157,16 @@ export default function ProjectDetail() {
         }
       },
       onError: () => toast({ title: "Generation Failed", description: "Check your OpenAI API key or try again.", variant: "destructive" }),
+    },
+  });
+
+  const focusedContext = useFocusedContextBlock({
+    mutation: {
+      onSuccess: r => {
+        setFocusedResult({ content: r.content, matchedCount: r.matchedCount });
+        setLastFocusedQuery(focusedQuery);
+      },
+      onError: () => toast({ title: "Search Failed", description: "Check your OpenAI API key or try again.", variant: "destructive" }),
     },
   });
 
@@ -338,6 +353,45 @@ export default function ProjectDetail() {
     toast({ title: "Copied to clipboard" });
   };
 
+  const handleFocusedSearch = () => {
+    if (!focusedQuery.trim() || !project) return;
+    setFocusedResult(null);
+    focusedContext.mutate({
+      data: {
+        projectName: project.name, projectType: project.type,
+        query: focusedQuery.trim(),
+        memoryItems: memories.map(m => ({
+          text: m.text, category: m.category,
+          importanceLevel: m.importanceLevel, createdAt: m.createdAt,
+        })),
+      },
+    });
+  };
+
+  const copyFocusedContext = () => {
+    if (!focusedResult) return;
+    navigator.clipboard.writeText(focusedResult.content);
+    toast({ title: "Copied to clipboard" });
+  };
+
+  const saveFocusedContextToProject = () => {
+    if (!focusedResult || !project) return;
+    const category = "Saved Context";
+    const updatedCategories = project.categories.includes(category)
+      ? project.categories
+      : [...project.categories, category];
+    if (!project.categories.includes(category)) {
+      saveField({ categories: updatedCategories });
+    }
+    Storage.saveMemory({
+      id: generateId(), projectId: project.id,
+      text: `[Focused Context: "${lastFocusedQuery}"]\n\n${focusedResult.content}`,
+      category, importanceLevel: "must-include",
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    });
+    toast({ title: "Saved to Project", description: `Added focused context for "${lastFocusedQuery}" to your Memory Bank.` });
+  };
+
   const downloadTxt = () => {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([generatedContext], { type: "text/plain" }));
@@ -403,11 +457,12 @@ export default function ProjectDetail() {
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:w-[600px] mb-8 h-12">
-            <TabsTrigger value="memory"  className="text-sm">Memory Bank</TabsTrigger>
-            <TabsTrigger value="update"  className="text-sm">Log Session</TabsTrigger>
-            <TabsTrigger value="context" className="text-sm">Get Context</TabsTrigger>
-            <TabsTrigger value="history" className="text-sm">History</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-5 lg:w-[750px] mb-8 h-12">
+            <TabsTrigger value="memory"  className="text-xs sm:text-sm">Memory</TabsTrigger>
+            <TabsTrigger value="update"  className="text-xs sm:text-sm">Log Session</TabsTrigger>
+            <TabsTrigger value="context" className="text-xs sm:text-sm">Get Context</TabsTrigger>
+            <TabsTrigger value="search"  className="text-xs sm:text-sm">Search</TabsTrigger>
+            <TabsTrigger value="history" className="text-xs sm:text-sm">History</TabsTrigger>
           </TabsList>
 
           {/* ── MEMORY TAB ─────────────────────────────────────── */}
@@ -834,6 +889,138 @@ export default function ProjectDetail() {
                 </AnimatePresence>
               </div>
             </div>
+          </TabsContent>
+
+          {/* ── SEARCH TAB ─────────────────────────────────────── */}
+          <TabsContent value="search" className="space-y-6">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-semibold">Focused Context Search</h2>
+              <HelpTip text="Search your project memory by topic, character, or question. The AI finds what's relevant and generates a focused context block you can paste straight into any AI conversation." />
+            </div>
+
+            {isDemo ? (
+              <Card className="border-dashed">
+                <CardContent className="py-10 text-center space-y-2">
+                  <Lock className="h-6 w-6 mx-auto text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Focused search is disabled on the demo project. Create your own project to try it.</p>
+                </CardContent>
+              </Card>
+            ) : memories.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="py-10 text-center space-y-3">
+                  <BookOpen className="h-8 w-8 mx-auto text-muted-foreground opacity-40" />
+                  <p className="text-sm font-medium text-muted-foreground">No memory items yet</p>
+                  <p className="text-xs text-muted-foreground max-w-xs mx-auto">Add notes to your Memory Bank first, then search across them here.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-6">
+                <p className="text-sm text-muted-foreground">
+                  Enter a topic, character, relationship, or question. OrgAInise searches all{" "}
+                  <span className="font-medium text-foreground">{memories.length}</span> saved items and generates a focused context block for that specific topic.
+                </p>
+
+                <div className="flex gap-2">
+                  <Input
+                    placeholder='e.g. "Kael", "Huldar and Aurora relationship", "open questions about the Shattering"'
+                    value={focusedQuery}
+                    onChange={e => setFocusedQuery(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") handleFocusedSearch(); }}
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={handleFocusedSearch}
+                    disabled={!focusedQuery.trim() || focusedContext.isPending}
+                    className="shrink-0"
+                  >
+                    {focusedContext.isPending ? (
+                      <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Search className="h-4 w-4 mr-2" />
+                    )}
+                    {focusedContext.isPending ? "Searching…" : "Generate"}
+                  </Button>
+                </div>
+
+                <AnimatePresence mode="wait">
+                  {focusedContext.isPending && (
+                    <motion.div key="loading"
+                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                      className="flex items-center gap-3 text-sm text-muted-foreground py-8"
+                    >
+                      <RefreshCw className="h-4 w-4 animate-spin shrink-0" />
+                      Scanning memory and generating focused context for &ldquo;{focusedQuery}&rdquo;…
+                    </motion.div>
+                  )}
+
+                  {!focusedContext.isPending && focusedResult && (
+                    <motion.div key="result"
+                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                      className="space-y-4"
+                    >
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                        <span>
+                          <span className="font-medium text-foreground">{focusedResult.matchedCount}</span>{" "}
+                          {focusedResult.matchedCount === 1 ? "item" : "items"} matched for{" "}
+                          &ldquo;<span className="text-foreground">{lastFocusedQuery}</span>&rdquo;
+                        </span>
+                      </div>
+                      <Textarea
+                        value={focusedResult.content}
+                        readOnly
+                        className="min-h-[480px] font-mono text-sm bg-muted/30 leading-relaxed p-4 resize-y"
+                      />
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <Button variant="outline" onClick={copyFocusedContext} className="flex-1">
+                          <Copy className="mr-2 h-4 w-4" /> Copy to Clipboard
+                        </Button>
+                        <Button variant="outline" onClick={saveFocusedContextToProject} className="flex-1">
+                          <Database className="mr-2 h-4 w-4" /> Save to Memory Bank
+                        </Button>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {!focusedContext.isPending && focusedContext.isError && !focusedResult && (
+                    <motion.div key="error"
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="flex items-center gap-3 text-sm text-destructive py-4"
+                    >
+                      <XCircle className="h-4 w-4 shrink-0" />
+                      Focused context search failed. Check your API key or try again.
+                    </motion.div>
+                  )}
+
+                  {!focusedContext.isPending && !focusedResult && !focusedContext.isError && (
+                    <motion.div key="empty"
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      className="space-y-3 pt-2"
+                    >
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Try searching for:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          "a character name",
+                          "a relationship",
+                          "open questions",
+                          "a location or faction",
+                          "a key event",
+                          "a theme or symbol",
+                        ].map(ex => (
+                          <button
+                            key={ex}
+                            onClick={() => setFocusedQuery(ex)}
+                            className="text-xs px-3 py-1.5 rounded-full border border-border bg-background hover:border-primary/50 hover:text-primary transition-colors"
+                          >
+                            {ex}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </TabsContent>
 
           {/* ── HISTORY TAB ────────────────────────────────────── */}
