@@ -1,0 +1,200 @@
+Build a "First Success Experience" system for OrgAInise.
+
+GOAL:
+
+A brand-new user should understand exactly what to do without reading documentation and should reach their first successful context block as quickly as possible.
+
+Do NOT create a complicated product tour.
+
+Do NOT add modal spam.
+
+Do NOT interrupt normal workflow.
+
+Use examples, visual guidance, and progressive onboarding.
+
+--------------------------------------------------
+FEATURE 1: EMPTY STATE EXAMPLES
+--------------------------------------------------
+
+Whenever a project category contains no memories, replace the current empty state with:
+
+- Category title
+- Short explanation
+- Example memory card
+- Add Memory button
+
+Example:
+
+WATCHLIST
+
+What belongs here:
+Stocks, products, ideas, people, projects, or things you are actively tracking.
+
+Example Memory:
+
+SHOP
+Watching support between 132-136.
+Target allocation: $450.
+Waiting for confirmation before adding.
+
+[ Add Memory ]
+
+--------------------------------------------------
+FEATURE 2: FIRST PROJECT CHECKLIST
+--------------------------------------------------
+
+When a project contains:
+
+0 memories
+0 logged sessions
+0 generated context blocks
+
+Display a "Getting Started" card at the top.
+
+Title:
+
+Build Your First Project Brain
+
+Checklist:
+
+□ Add your first memory
+□ Log a work session
+□ Generate a context block
+
+As tasks are completed:
+
+✓ Add your first memory
+□ Log a work session
+□ Generate a context block
+
+Continue updating until complete.
+
+When complete:
+
+✓ Add your first memory
+✓ Log a work session
+✓ Generate a context block
+
+Display:
+
+🎉 Project Brain Ready
+
+You now have enough information to generate useful AI context.
+
+--------------------------------------------------
+FEATURE 3: INTERACTIVE DEMO PROJECT
+--------------------------------------------------
+
+Create a permanent demo project called:
+
+Example Project
+
+This project is read-only.
+
+Purpose:
+
+Show users exactly how OrgAInise works.
+
+Populate it with:
+
+Memory Bank
+Log Session
+History
+Generated Context
+
+Use realistic example content.
+
+Allow users to browse it.
+
+Do NOT allow edits.
+
+This project should always exist.
+
+--------------------------------------------------
+FEATURE 4: SMART HELP HINTS
+--------------------------------------------------
+
+Detect inactivity.
+
+If a user remains on a page for:
+
+90 seconds
+
+and has taken no meaningful action:
+
+Show a small floating hint.
+
+Examples:
+
+"Try adding your first memory."
+
+"Need inspiration? Open the Example Project."
+
+"Generate context once you've added a few memories."
+
+Hints should:
+
+- Appear once
+- Fade away automatically
+- Never become annoying
+- Never block the interface
+
+--------------------------------------------------
+FEATURE 5: CATEGORY EXPLANATIONS
+--------------------------------------------------
+
+Add a small help icon beside every category.
+
+Clicking it opens a lightweight tooltip.
+
+Show:
+
+1. What belongs here
+2. Why it matters
+3. Example entry
+
+Keep explanations short.
+
+Maximum 3 sentences.
+
+--------------------------------------------------
+FEATURE 6: FIRST CONTEXT MOMENT
+--------------------------------------------------
+
+After a user successfully generates their first context block:
+
+Display a celebration card.
+
+Title:
+
+Your Context Block Is Ready
+
+Message:
+
+Copy this block and paste it into ChatGPT, Claude, Gemini, or another AI conversation.
+
+This helps the AI instantly understand your project without starting from scratch.
+
+Button:
+
+Copy Context
+
+--------------------------------------------------
+DESIGN REQUIREMENTS
+--------------------------------------------------
+
+Keep OrgAInise clean.
+
+Avoid large popups.
+
+Avoid complicated walkthrough systems.
+
+Avoid forced tutorials.
+
+Prefer:
+- Examples
+- Visual cues
+- Small hints
+- Progress indicators
+
+The objective is to guide users naturally toward their first successful context block.

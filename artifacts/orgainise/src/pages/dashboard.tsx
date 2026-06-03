@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   Plus, BrainCircuit, Database, Clock, Search,
   ArrowUpDown, AlarmClock, ArrowDownAZ, CalendarClock,
-  MoreHorizontal, Copy, Trash2, Download,
+  MoreHorizontal, Copy, Trash2, Download, Lock,
 } from "lucide-react";
+import { DEMO_PROJECT_ID } from "@/lib/demo-project";
 import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -78,8 +79,8 @@ export default function Dashboard() {
   }, [projects, search, sort]);
 
   function handleExport() {
-    const allProjects = Storage.getProjects();
-    const allMemories = Storage.getMemories();
+    const allProjects = Storage.getProjects().filter(p => p.id !== DEMO_PROJECT_ID);
+    const allMemories = Storage.getMemories().filter(m => m.projectId !== DEMO_PROJECT_ID);
     const allHistory  = allProjects.flatMap(p => Storage.getHistory(p.id));
 
     const backup = {
@@ -132,7 +133,7 @@ export default function Dashboard() {
             <h1 className="text-3xl font-bold tracking-tight">Command Centre</h1>
             <p className="text-muted-foreground mt-1">Keep your projects organized and your AI up to speed.</p>
           </div>
-          {projects.length > 0 && (
+          {projects.some(p => p.id !== DEMO_PROJECT_ID) && (
             <Button
               variant="outline"
               size="sm"
@@ -146,7 +147,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        {projects.length === 0 ? (
+        {projects.filter(p => p.id !== DEMO_PROJECT_ID).length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -242,9 +243,15 @@ export default function Dashboard() {
                                 </CardTitle>
 
                                 <div className="flex items-center gap-1 shrink-0">
-                                  <Badge variant="secondary" className="font-mono text-xs hidden sm:flex">
-                                    {project.type}
-                                  </Badge>
+                                  {project.id === DEMO_PROJECT_ID ? (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 border border-primary/30 rounded bg-primary/5 text-primary hidden sm:flex">
+                                      <Lock className="h-2.5 w-2.5" /> Demo
+                                    </span>
+                                  ) : (
+                                    <Badge variant="secondary" className="font-mono text-xs hidden sm:flex">
+                                      {project.type}
+                                    </Badge>
+                                  )}
 
                                   {/* Card action menu */}
                                   <DropdownMenu>
@@ -258,23 +265,32 @@ export default function Dashboard() {
                                       </button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-44" onClick={e => e.stopPropagation()}>
-                                      <DropdownMenuItem
-                                        data-testid={`button-duplicate-${project.id}`}
-                                        className="gap-2 cursor-pointer"
-                                        onSelect={e => handleDuplicate(project.id, project.name, e as unknown as React.MouseEvent)}
-                                      >
-                                        <Copy className="h-4 w-4" />
-                                        Duplicate
-                                      </DropdownMenuItem>
-                                      <DropdownMenuSeparator />
-                                      <DropdownMenuItem
-                                        data-testid={`button-delete-${project.id}`}
-                                        className="gap-2 cursor-pointer text-destructive focus:text-destructive"
-                                        onSelect={e => { e.preventDefault(); setDeleteTarget(project.id); }}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                        Delete
-                                      </DropdownMenuItem>
+                                      {project.id !== DEMO_PROJECT_ID && (
+                                        <DropdownMenuItem
+                                          data-testid={`button-duplicate-${project.id}`}
+                                          className="gap-2 cursor-pointer"
+                                          onSelect={e => handleDuplicate(project.id, project.name, e as unknown as React.MouseEvent)}
+                                        >
+                                          <Copy className="h-4 w-4" />
+                                          Duplicate
+                                        </DropdownMenuItem>
+                                      )}
+                                      {project.id !== DEMO_PROJECT_ID && <DropdownMenuSeparator />}
+                                      {project.id !== DEMO_PROJECT_ID ? (
+                                        <DropdownMenuItem
+                                          data-testid={`button-delete-${project.id}`}
+                                          className="gap-2 cursor-pointer text-destructive focus:text-destructive"
+                                          onSelect={e => { e.preventDefault(); setDeleteTarget(project.id); }}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                          Delete
+                                        </DropdownMenuItem>
+                                      ) : (
+                                        <DropdownMenuItem disabled className="gap-2 text-muted-foreground text-xs">
+                                          <Lock className="h-4 w-4" />
+                                          Read-only demo
+                                        </DropdownMenuItem>
+                                      )}
                                     </DropdownMenuContent>
                                   </DropdownMenu>
                                 </div>

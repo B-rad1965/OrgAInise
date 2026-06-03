@@ -23,12 +23,17 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Trash2, Edit2, Copy, Download, BrainCircuit, Sparkles,
   Clock, CheckCircle2, XCircle, ArrowRight, RefreshCw, Database,
-  Plus, GitMerge, X,
+  Plus, GitMerge, X, Lock,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { HelpTip } from "@/components/ui/help-tip";
+import { DEMO_PROJECT_ID, DEMO_GENERATED_CONTEXT } from "@/lib/demo-project";
+import { markContextGenerated, hasGeneratedContext, isChecklistDismissed, dismissChecklist } from "@/lib/first-success";
+import { getCategoryExample, getCategoryHelpTip } from "@/lib/category-examples";
+import { GettingStartedCard } from "@/components/getting-started-card";
+import { InactivityHint } from "@/components/inactivity-hint";
 
 /* ─── InlineEdit ─────────────────────────────────────────────────── */
 function InlineEdit({
@@ -115,7 +120,19 @@ export default function ProjectDetail() {
   const [contextLength, setContextLength]           = useState<"short" | "medium" | "full">("medium");
   const [selectedCategories, setSelectedCategories] = useState<string[]>(project?.categories || []);
   const [includeArchive, setIncludeArchive]         = useState(false);
-  const [generatedContext, setGeneratedContext]     = useState("");
+  const [generatedContext, setGeneratedContext]     = useState(
+    () => project?.id === DEMO_PROJECT_ID ? DEMO_GENERATED_CONTEXT : ""
+  );
+
+  /* ── demo / first-success ── */
+  const isDemo = project?.id === DEMO_PROJECT_ID;
+  const [contextEverGenerated, setContextEverGenerated] = useState(
+    () => project?.id === DEMO_PROJECT_ID ? true : hasGeneratedContext(project?.id ?? "")
+  );
+  const [showFirstContextCelebration, setShowFirstContextCelebration] = useState(false);
+  const [checklistDismissed, setChecklistDismissed] = useState(
+    () => isChecklistDismissed(project?.id ?? "")
+  );
 
   /* ── mutations ── */
   const analyzeSession = useAnalyzeSession({
@@ -126,7 +143,14 @@ export default function ProjectDetail() {
   });
   const generateContext = useGenerateContextBlock({
     mutation: {
-      onSuccess: r => setGeneratedContext(r.content),
+      onSuccess: r => {
+        setGeneratedContext(r.content);
+        if (!contextEverGenerated && !isDemo) {
+          markContextGenerated(projectId);
+          setContextEverGenerated(true);
+          setShowFirstContextCelebration(true);
+        }
+      },
       onError: () => toast({ title: "Generation Failed", description: "Check your OpenAI API key or try again.", variant: "destructive" }),
     },
   });
@@ -331,11 +355,21 @@ export default function ProjectDetail() {
           <div className="space-y-2">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-3xl font-bold tracking-tight">
-                <InlineEdit value={project.name} onSave={v => saveField({ name: v })}
-                  className="text-3xl font-bold tracking-tight" />
+                {isDemo ? (
+                  project.name
+                ) : (
+                  <InlineEdit value={project.name} onSave={v => saveField({ name: v })}
+                    className="text-3xl font-bold tracking-tight" />
+                )}
               </h1>
-              <InlineEdit value={project.type} onSave={v => saveField({ type: v })}
-                className="font-mono text-xs px-2 py-0.5 border border-border rounded-md bg-background text-muted-foreground" />
+              {isDemo ? (
+                <span className="inline-flex items-center gap-1.5 text-xs font-mono px-2 py-0.5 border border-primary/30 rounded-md bg-primary/5 text-primary">
+                  <Lock className="h-3 w-3" /> Demo · Read Only
+                </span>
+              ) : (
+                <InlineEdit value={project.type} onSave={v => saveField({ type: v })}
+                  className="font-mono text-xs px-2 py-0.5 border border-border rounded-md bg-background text-muted-foreground" />
+              )}
             </div>
             <div className="flex items-center text-sm text-muted-foreground gap-1">
               <Clock className="h-3 w-3" />
@@ -346,13 +380,27 @@ export default function ProjectDetail() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => {
-              if (confirm("Delete this project?")) { Storage.deleteProject(project.id); setLocation("/"); }
-            }}>
-              <Trash2 className="h-4 w-4 mr-2" /> Delete
-            </Button>
+            {!isDemo && (
+              <Button variant="outline" size="sm" onClick={() => {
+                if (confirm("Delete this project?")) { Storage.deleteProject(project.id); setLocation("/"); }
+              }}>
+                <Trash2 className="h-4 w-4 mr-2" /> Delete
+              </Button>
+            )}
           </div>
         </div>
+
+        {!isDemo && !checklistDismissed && (
+          <GettingStartedCard
+            hasMemories={memories.length > 0}
+            hasHistory={history.length > 0}
+            hasGeneratedContext={contextEverGenerated}
+            onDismiss={() => {
+              dismissChecklist(projectId);
+              setChecklistDismissed(true);
+            }}
+          />
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-4 lg:w-[600px] mb-8 h-12">
@@ -370,14 +418,16 @@ export default function ProjectDetail() {
                 <HelpTip text="Save the facts, decisions, updates, and discoveries that matter. OrgAInise uses these to build better context for your AI conversations." />
               </div>
               <Dialog open={isAddMemoryOpen} onOpenChange={setIsAddMemoryOpen}>
-                <DialogTrigger asChild>
-                  <Button onClick={() => {
-                    setEditingMemory(null);
-                    setMemoryForm({ text: "", category: project.categories[0] || "", importanceLevel: "useful-context" });
-                  }}>
-                    <Sparkles className="mr-2 h-4 w-4" /> Add Note
-                  </Button>
-                </DialogTrigger>
+                {!isDemo && (
+                  <DialogTrigger asChild>
+                    <Button onClick={() => {
+                      setEditingMemory(null);
+                      setMemoryForm({ text: "", category: project.categories[0] || "", importanceLevel: "useful-context" });
+                    }}>
+                      <Sparkles className="mr-2 h-4 w-4" /> Add Note
+                    </Button>
+                  </DialogTrigger>
+                )}
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>{editingMemory ? "Edit Memory" : "Add Manual Memory"}</DialogTitle>
@@ -435,14 +485,19 @@ export default function ProjectDetail() {
                 <div key={category} className="space-y-3">
                   {/* Category header */}
                   <div className="flex items-center justify-between border-b border-border/50 pb-2 group/cat">
-                    <h3 className="font-semibold text-lg text-primary/80">
-                      {isUncategorized
-                        ? <span className="text-muted-foreground italic text-base">Uncategorized</span>
-                        : <InlineEdit value={category} onSave={n => renameCategory(category, n)}
-                            className="font-semibold text-lg text-primary/80" />
-                      }
-                    </h3>
-                    {!isUncategorized && (
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-lg text-primary/80">
+                        {isUncategorized
+                          ? <span className="text-muted-foreground italic text-base">Uncategorized</span>
+                          : isDemo
+                            ? <span className="font-semibold text-lg text-primary/80">{category}</span>
+                            : <InlineEdit value={category} onSave={n => renameCategory(category, n)}
+                                className="font-semibold text-lg text-primary/80" />
+                        }
+                      </h3>
+                      {!isUncategorized && <HelpTip text={getCategoryHelpTip(category)} side="right" />}
+                    </div>
+                    {!isUncategorized && !isDemo && (
                       <div className="flex items-center gap-1 opacity-0 group-hover/cat:opacity-100 transition-opacity">
                         <span className="text-xs text-muted-foreground mr-1">{items.length} item{items.length !== 1 ? "s" : ""}</span>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary"
@@ -459,8 +514,30 @@ export default function ProjectDetail() {
                     )}
                   </div>
 
-                  {items.length === 0 && (
-                    <p className="text-sm text-muted-foreground italic pl-1">Empty category — add a note or delete it.</p>
+                  {items.length === 0 && !isDemo && (
+                    <div className="rounded-lg border border-dashed border-border/60 p-5 bg-muted/10">
+                      <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
+                        {getCategoryExample(category).whatBelongsHere}
+                      </p>
+                      <div className="rounded-md border border-border/40 bg-card p-3 mb-4 opacity-60 pointer-events-none select-none">
+                        <p className="text-sm italic text-foreground/70 leading-relaxed">
+                          {getCategoryExample(category).exampleText}
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-secondary text-secondary-foreground capitalize">
+                            {getCategoryExample(category).exampleImportance.replace(/-/g, " ")}
+                          </span>
+                          <span className="text-xs text-muted-foreground">example</span>
+                        </div>
+                      </div>
+                      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => {
+                        setEditingMemory(null);
+                        setMemoryForm({ text: "", category, importanceLevel: "useful-context" });
+                        setIsAddMemoryOpen(true);
+                      }}>
+                        <Plus className="h-3.5 w-3.5" /> Add Memory
+                      </Button>
+                    </div>
                   )}
 
                   {/* Memory items */}
@@ -480,16 +557,18 @@ export default function ProjectDetail() {
                               <span className="text-xs text-muted-foreground">{format(new Date(item.updatedAt), "MMM d")}</span>
                             </div>
                           </div>
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-2">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
-                              onClick={() => { setEditingMemory(item); setMemoryForm({ text: item.text, category: item.category, importanceLevel: item.importanceLevel }); setIsAddMemoryOpen(true); }}>
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                              onClick={() => { if (confirm("Delete this memory?")) Storage.deleteMemory(item.id); }}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          {!isDemo && (
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-2">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                onClick={() => { setEditingMemory(item); setMemoryForm({ text: item.text, category: item.category, importanceLevel: item.importanceLevel }); setIsAddMemoryOpen(true); }}>
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                onClick={() => { if (confirm("Delete this memory?")) Storage.deleteMemory(item.id); }}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     ))}
@@ -505,7 +584,7 @@ export default function ProjectDetail() {
             )}
 
             {/* Add category row */}
-            <div className="pt-2 border-t border-border/30">
+            {!isDemo && <div className="pt-2 border-t border-border/30">
               <AnimatePresence mode="wait">
                 {addingCategory ? (
                   <motion.div key="adding"
@@ -537,12 +616,24 @@ export default function ProjectDetail() {
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
+            </div>}
           </TabsContent>
 
           {/* ── UPDATE SESSION TAB ─────────────────────────────── */}
           <TabsContent value="update">
-            {!reviewingSuggestions ? (
+            {isDemo ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center space-y-5">
+                <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Lock className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="font-semibold text-base mb-1">This is a read-only demo project</p>
+                  <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+                    Create your own project to log sessions and let AI extract the important facts for you.
+                  </p>
+                </div>
+              </div>
+            ) : !reviewingSuggestions ? (
               <div className="space-y-6">
                 <div>
                   <div className="flex items-center gap-2 mb-2">
@@ -674,27 +765,73 @@ export default function ProjectDetail() {
               </div>
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold">Output</h2>
-                {generatedContext ? (
-                  <>
-                    <Textarea value={generatedContext} readOnly
-                      className="min-h-[400px] font-mono text-sm bg-muted/30 leading-relaxed p-4" />
-                    <div className="flex gap-3">
-                      <Button variant="outline" onClick={copyToClipboard} className="flex-1">
-                        <Copy className="mr-2 h-4 w-4" /> Copy to Clipboard
-                      </Button>
-                      <Button variant="outline" onClick={downloadTxt}>
-                        <Download className="mr-2 h-4 w-4" /> Download .txt
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex items-center justify-center min-h-[400px] border border-dashed rounded-lg text-muted-foreground text-center p-8">
-                    <div>
-                      <BrainCircuit className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                      <p>Select categories and click Generate to build your context block.</p>
-                    </div>
-                  </div>
-                )}
+                <AnimatePresence mode="wait">
+                  {showFirstContextCelebration ? (
+                    <motion.div
+                      key="celebration"
+                      initial={{ opacity: 0, scale: 0.96 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.96 }}
+                      className="flex items-center justify-center min-h-[400px]"
+                    >
+                      <div className="text-center space-y-6 max-w-sm">
+                        <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+                          <Sparkles className="h-8 w-8 text-primary" />
+                        </div>
+                        <div className="space-y-2">
+                          <h3 className="text-xl font-bold">Your Context Block Is Ready</h3>
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            Copy this and paste it into ChatGPT, Claude, Gemini, or any AI conversation — it instantly gets the AI up to speed on your project.
+                          </p>
+                        </div>
+                        <Button
+                          size="lg"
+                          className="w-full"
+                          onClick={() => {
+                            copyToClipboard();
+                            setShowFirstContextCelebration(false);
+                          }}
+                        >
+                          <Copy className="mr-2 h-4 w-4" /> Copy Context
+                        </Button>
+                        <button
+                          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={() => setShowFirstContextCelebration(false)}
+                        >
+                          Show the full output instead
+                        </button>
+                      </div>
+                    </motion.div>
+                  ) : generatedContext ? (
+                    <motion.div
+                      key="output"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="space-y-4"
+                    >
+                      <Textarea value={generatedContext} readOnly
+                        className="min-h-[400px] font-mono text-sm bg-muted/30 leading-relaxed p-4" />
+                      <div className="flex gap-3">
+                        <Button variant="outline" onClick={copyToClipboard} className="flex-1">
+                          <Copy className="mr-2 h-4 w-4" /> Copy to Clipboard
+                        </Button>
+                        <Button variant="outline" onClick={downloadTxt}>
+                          <Download className="mr-2 h-4 w-4" /> Download .txt
+                        </Button>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="empty"
+                      className="flex items-center justify-center min-h-[400px] border border-dashed rounded-lg text-muted-foreground text-center p-8"
+                    >
+                      <div>
+                        <BrainCircuit className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                        <p>Select categories and click Generate to build your context block.</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           </TabsContent>
@@ -829,6 +966,14 @@ export default function ProjectDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {!isDemo && (
+        <InactivityHint
+          hasMemories={memories.length > 0}
+          hasHistory={history.length > 0}
+          hasGeneratedContext={contextEverGenerated}
+        />
+      )}
     </Layout>
   );
 }

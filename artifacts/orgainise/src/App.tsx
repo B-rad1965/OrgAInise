@@ -10,6 +10,7 @@ import ProjectDetail from "@/pages/projects/[id]";
 import HelpPage from "@/pages/help";
 import { OnboardingModal } from "@/components/onboarding-modal";
 import { shouldShowOnboarding } from "@/lib/onboarding";
+import { seedDemoProject } from "@/lib/demo-project";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,10 @@ function Router() {
 
 function App() {
   const [showOnboarding, setShowOnboarding] = useState(() => shouldShowOnboarding());
+
+  useEffect(() => {
+    seedDemoProject();
+  }, []);
 
   useEffect(() => {
     const handler = () => setShowOnboarding(true);
