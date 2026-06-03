@@ -218,19 +218,23 @@ WRITING PROJECT — OUTPUT STRUCTURE:
 Organize the output using these sections (include only sections that have relevant content from the memory provided):
 
 ## Story DNA
-The core emotional and thematic architecture — themes, emotional engines, symbolic meanings, tone. Answer "why does this story work?", not "what happens?". Preserve full resonant phrasing; do not compress into bare bullet facts.
+The core emotional and thematic architecture — themes, emotional engines, symbolic meanings, tone. Answer "why does this story work?", not "what happens?". Preserve full resonant phrasing; do not compress into bare bullet facts. For each major theme or emotional truth, add a brief **Narrative Function** note (one sentence) explaining why it matters to the story.
 
 ## Character DNA
-Each significant character's emotional core: wound, desire, voice, arc direction. What drives them beneath the surface.
+Each significant character gets their own subsection. Include:
+- Their emotional core: wound, desire, voice, arc direction, what drives them beneath the surface
+- **Narrative Function**: one sentence explaining why this character matters to the story — their role in the thematic argument, what they represent, what the story would lose without them
+Do NOT reduce a character to a list of actions they took. Preserve their psychological interiority. A character is not "the person who did X" — they are the person who fears Y, wants Z, and is changed by the story in this specific way.
 
 ## Relationship DNA
 What makes key relationships work emotionally — the tension, contrast, chemistry, what each person gives the other that no one else can.
+For each relationship, include a **Narrative Function** note explaining why this dynamic is essential to the story.
 
 ## Lore / Magic / Rules
 Confirmed world rules and constraints — how systems, magic, or technology work. Only include things established as definite fact.
 
 ## Canon Events
-Confirmed plot events — things that definitively happened, established as fact. Do NOT include anything speculative or uncertain here.
+Confirmed plot events — things that definitively happened, established as fact. Do NOT include anything speculative or uncertain here. For events that are narratively significant (turning points, reveals, character-defining moments), add a brief **Narrative Function** note explaining what the event means beyond what happened.
 
 ## Working Theories
 Ideas being actively explored, authorial speculation, directional thinking that isn't yet confirmed. This section MUST preserve all uncertainty language exactly — "maybe", "possibly", "potentially", "perhaps", "might", "could be", "I'm thinking", "considering whether". Never convert speculation into fact.
@@ -243,9 +247,11 @@ How to work with the AI effectively on this project — tone instructions, what 
 
 CRITICAL RULES FOR WRITING PROJECTS:
 1. Uncertainty language is sacred. If a memory item says "maybe X" or "possibly Y", it MUST appear in Working Theories — never in Canon Events. Never strip "maybe", "possibly", "potentially", "perhaps" from any text.
-2. Story DNA, Character DNA, and Relationship DNA items must NOT be compressed into bare facts. Preserve the emotional truth and resonant phrasing.
-3. Canon Events must only contain things stated as definite, confirmed fact.
-4. Separate confirmed from speculative at all times — a reader should immediately know which is which.` : "";
+2. Story DNA, Character DNA, and Relationship DNA must NOT be compressed into bare facts. Preserve emotional truth and resonant phrasing.
+3. Foundational characters must receive their full Character DNA treatment — never reduce them to a passing event reference (e.g. "Kael lost his unit at Veld Crossing" is insufficient; you must also capture what that loss means for who Kael is).
+4. Canon Events must only contain things stated as definite, confirmed fact.
+5. Separate confirmed from speculative at all times — a reader should immediately know which is which.
+6. Narrative Function notes are optional but strongly encouraged for major characters, key relationships, significant events, and core themes. They answer: "Why does this element matter to the story?"` : "";
 
   const systemPrompt = `You are an AI assistant generating a project context block for OrgAInise. The context block will be pasted into another AI chat to quickly bring the model up to speed on a project.
 
