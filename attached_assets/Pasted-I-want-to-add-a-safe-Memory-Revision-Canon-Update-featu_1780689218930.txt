@@ -1,0 +1,279 @@
+I want to add a safe “Memory Revision / Canon Update” feature to OrgAInise, but before building anything, first audit what already exists.
+
+IMPORTANT:
+Do not modify code yet.
+Do not create migrations yet.
+Do not delete or rewrite any existing data.
+First inspect the current codebase and report what already exists that could support this feature.
+
+GOAL OF FUTURE FEATURE:
+Users need a way to update, archive, remove, or replace previously saved project memories when a project changes direction.
+
+Example use case:
+In a writing project, older plot/canon/lore has changed. The user needs to say:
+“This old canon is no longer true. Find related memories, suggest what should be archived, rewritten, removed, or kept, and let me approve changes before anything is applied.”
+
+This feature should eventually help maintain project truth over time without manually hunting through every memory.
+
+---
+
+## PHASE 1: AUDIT ONLY
+
+Inspect the existing codebase and answer:
+
+1. What memory editing features already exist?
+
+   * Can individual memories be edited?
+   * Can individual memories be deleted?
+   * Can importance level be changed?
+   * Can category be changed?
+   * Can items be archived already?
+
+2. What history/session editing features already exist?
+
+   * Can session history be edited?
+   * Can it be deleted?
+   * Can it be excluded from generated context?
+
+3. What database fields already support this?
+
+   * memories table fields
+   * session_history table fields
+   * projects table fields
+   * any archived/deleted/status fields
+   * timestamps
+   * categories
+   * importance_level
+
+4. What API routes already support updating memories?
+
+   * list routes
+   * create routes
+   * update routes
+   * delete routes
+   * sync routes
+
+5. What UI components already exist that could be reused?
+
+   * Add/Edit memory modal
+   * delete confirmation
+   * category selector
+   * importance selector
+   * context generation UI
+   * history UI
+   * help tooltip components
+
+6. What AI routes already exist that could support analysis?
+
+   * session extraction
+   * context generation
+   * memory suggestion
+   * categorization
+   * any OpenAI proxy routes
+
+7. What would be the lowest-risk implementation path?
+
+Do not build yet. Produce a clear report titled:
+
+Memory Revision Feature: Existing Capability Audit
+
+---
+
+## PHASE 2: PROPOSE SAFE DESIGN
+
+After the audit, propose a safe implementation plan for a future feature called:
+
+Memory Revision / Canon Update
+
+The plan should be review-first and non-destructive.
+
+Required behavior:
+
+1. User opens a “Revise Memories” tool inside a project.
+
+2. User describes the change in plain language.
+
+Examples:
+
+* “Keal is no longer canon. Find all memories related to Keal.”
+* “Aurora’s deepest fear is abandonment, not intimacy. Update affected memories.”
+* “The old magic system is obsolete. Archive memories about shard-based teleportation.”
+* “Rename Keal to Caelen everywhere, but let me review first.”
+
+3. App searches existing project memories and session history for related content.
+
+4. AI analyzes results and proposes actions.
+
+Possible proposed actions:
+
+* Keep unchanged
+* Archive old memory
+* Delete memory
+* Rewrite memory
+* Rename entity
+* Move category
+* Change importance level
+
+5. User sees a review screen before anything happens.
+
+Each proposed change should show:
+
+* Original memory
+* Proposed action
+* Proposed replacement text if rewriting
+* Reason for suggestion
+* Checkbox or approve/reject controls
+
+6. User can approve individually or approve all.
+
+7. Before applying approved changes, create a rollback snapshot.
+
+8. Applying changes should never happen automatically.
+
+9. Old canon should preferably be archived rather than permanently deleted by default.
+
+10. User should be able to view archived memories and restore them later.
+
+---
+
+## DATA SAFETY REQUIREMENTS
+
+Do not permanently delete anything by default.
+
+Prefer archive/status fields over hard deletion.
+
+If the current schema does not support archiving, propose the smallest safe schema change.
+
+Possible field additions:
+
+* status: active | archived
+* archived_at
+* archived_reason
+* superseded_by_memory_id
+* revision_batch_id
+
+If schema changes are needed, explain:
+
+* why they are needed
+* whether they affect existing data
+* rollback plan
+* migration risk
+
+---
+
+## UI REQUIREMENTS
+
+The feature should feel simple.
+
+Possible labels:
+
+* Revise Memories
+* Canon Update
+* Memory Cleanup
+* Update Project Truth
+
+Suggested placement:
+Inside project page, near Memory Bank or History tab.
+
+Avoid overwhelming users.
+
+Preferred flow:
+
+Revise Memories
+→ Describe what changed
+→ Find affected memories
+→ Review proposed updates
+→ Approve changes
+→ Snapshot saved
+→ Memories updated / archived
+
+---
+
+## AI SAFETY REQUIREMENTS
+
+AI should never directly mutate data.
+
+AI only produces suggestions.
+
+The app applies changes only after user approval.
+
+AI output must be structured JSON, not free-form text, so the review UI can safely display proposed changes.
+
+Suggested output shape:
+
+{
+"summary": "Short explanation of what was found",
+"matches": [
+{
+"memoryId": "abc123",
+"currentText": "...",
+"proposedAction": "archive | rewrite | keep | delete | rename | recategorize",
+"proposedText": "...",
+"reason": "...",
+"confidence": "low | medium | high"
+}
+]
+}
+
+If confidence is low, default to “review carefully” and do not auto-select.
+
+---
+
+## IMPLEMENTATION CONSTRAINTS
+
+Keep existing app behavior unchanged.
+
+Do not break:
+
+* localStorage-first behavior
+* database sync
+* guest usage
+* authenticated usage
+* context generation
+* existing memory editing
+* onboarding/demo project
+
+This feature should be additive.
+
+If the full feature is too large, propose a phased implementation:
+
+Phase A:
+Manual archive + restore support.
+
+Phase B:
+Search affected memories by keyword/entity.
+
+Phase C:
+AI-assisted revision suggestions.
+
+Phase D:
+Batch review and approve.
+
+Phase E:
+Rollback snapshots.
+
+---
+
+## SECURITY REQUIREMENTS
+
+All database routes must be user-scoped.
+
+No user can revise or view another user’s memories.
+
+No API keys or secrets should be exposed to frontend bundles.
+
+All AI analysis should run server-side.
+
+---
+
+## EXPECTED RESPONSE
+
+First response should NOT build anything.
+
+First response should be an audit and implementation plan.
+
+Only after I approve should you begin coding.
+
+Start with:
+
+Memory Revision Feature: Existing Capability Audit
