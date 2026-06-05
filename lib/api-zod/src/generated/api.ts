@@ -67,6 +67,37 @@ export const GenerateContextBlockResponse = zod.object({
 
 
 /**
+ * Returns proposed actions (archive, rewrite, recategorize, delete) for affected memories — does not mutate anything
+ * @summary Analyse project memories against a revision statement
+ */
+export const ReviseMemoriesBody = zod.object({
+  "projectName": zod.string(),
+  "projectType": zod.string(),
+  "revisionStatement": zod.string(),
+  "memoryItems": zod.array(zod.object({
+  "id": zod.string(),
+  "text": zod.string(),
+  "category": zod.string(),
+  "importanceLevel": zod.enum(['must-include', 'useful-context', 'archive-reference']),
+  "createdAt": zod.string()
+}))
+})
+
+export const ReviseMemoriesResponse = zod.object({
+  "summary": zod.string(),
+  "matches": zod.array(zod.object({
+  "memoryId": zod.string(),
+  "currentText": zod.string(),
+  "proposedAction": zod.enum(['keep', 'archive', 'rewrite', 'delete', 'recategorize']),
+  "proposedText": zod.string().nullish(),
+  "proposedCategory": zod.string().nullish(),
+  "reason": zod.string(),
+  "confidence": zod.enum(['low', 'medium', 'high'])
+}))
+})
+
+
+/**
  * Searches project memory for a specific query and generates a focused, topic-specific context block
  * @summary Generate a focused context block for a specific topic
  */

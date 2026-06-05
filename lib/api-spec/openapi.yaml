@@ -95,6 +95,38 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /ai/revise-memories:
+    post:
+      operationId: reviseMemories
+      tags: [ai]
+      summary: Analyse project memories against a revision statement
+      description: Returns proposed actions (archive, rewrite, recategorize, delete) for affected memories — does not mutate anything
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviseMemoriesInput"
+      responses:
+        "200":
+          description: AI revision suggestions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviseMemoriesResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /ai/focused-context:
     post:
       operationId: focusedContextBlock
@@ -701,6 +733,71 @@ components:
       properties:
         content:
           type: string
+
+    ReviseMemoriesMemoryItem:
+      type: object
+      required: [id, text, category, importanceLevel, createdAt]
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        category:
+          type: string
+        importanceLevel:
+          type: string
+          enum: [must-include, useful-context, archive-reference]
+        createdAt:
+          type: string
+
+    ReviseMemoriesInput:
+      type: object
+      required: [projectName, projectType, revisionStatement, memoryItems]
+      properties:
+        projectName:
+          type: string
+        projectType:
+          type: string
+        revisionStatement:
+          type: string
+        memoryItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviseMemoriesMemoryItem"
+
+    RevisionMatch:
+      type: object
+      required: [memoryId, currentText, proposedAction, reason, confidence]
+      properties:
+        memoryId:
+          type: string
+        currentText:
+          type: string
+        proposedAction:
+          type: string
+          enum: [keep, archive, rewrite, delete, recategorize]
+        proposedText:
+          type: string
+          nullable: true
+        proposedCategory:
+          type: string
+          nullable: true
+        reason:
+          type: string
+        confidence:
+          type: string
+          enum: [low, medium, high]
+
+    ReviseMemoriesResult:
+      type: object
+      required: [summary, matches]
+      properties:
+        summary:
+          type: string
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/RevisionMatch"
 
     FocusedContextMemoryItem:
       type: object

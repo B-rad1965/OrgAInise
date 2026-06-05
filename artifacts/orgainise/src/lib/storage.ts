@@ -39,11 +39,20 @@ export type SessionHistory = {
   createdAt: string;
 };
 
+export type RevisionSnapshot = {
+  id: string;
+  projectId: string;
+  label: string;
+  createdAt: string;
+  memoriesSnapshot: MemoryItem[];
+};
+
 /* ─── Keys ───────────────────────────────────────────────────────── */
 const STORAGE_KEYS = {
-  PROJECTS: 'orgainise_projects',
-  MEMORIES: 'orgainise_memories',
-  HISTORY:  'orgainise_history',
+  PROJECTS:  'orgainise_projects',
+  MEMORIES:  'orgainise_memories',
+  HISTORY:   'orgainise_history',
+  SNAPSHOTS: 'orgainise_snapshots',
 } as const;
 
 /* ─── Storage health check ───────────────────────────────────────── */
@@ -192,6 +201,34 @@ export const Storage = {
     readData<SessionHistory[]>(STORAGE_KEYS.HISTORY, [])
       .filter(h => h.projectId === projectId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+
+  /* Revision snapshots */
+  getSnapshots: (projectId: string): RevisionSnapshot[] =>
+    readData<RevisionSnapshot[]>(STORAGE_KEYS.SNAPSHOTS, [])
+      .filter(s => s.projectId === projectId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+
+  saveSnapshot: (snapshot: RevisionSnapshot): void => {
+    let all = readData<RevisionSnapshot[]>(STORAGE_KEYS.SNAPSHOTS, []);
+    all.push(snapshot);
+    const forProject = all
+      .filter(s => s.projectId === snapshot.projectId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5);
+    all = all.filter(s => s.projectId !== snapshot.projectId).concat(forProject);
+    writeData(STORAGE_KEYS.SNAPSHOTS, all);
+  },
+
+  restoreSnapshot: (snapshotId: string, projectId: string): boolean => {
+    const all = readData<RevisionSnapshot[]>(STORAGE_KEYS.SNAPSHOTS, []);
+    const snapshot = all.find(s => s.id === snapshotId && s.projectId === projectId);
+    if (!snapshot) return false;
+    const allMemories = readData<MemoryItem[]>(STORAGE_KEYS.MEMORIES, []);
+    const otherMemories = allMemories.filter(m => m.projectId !== projectId);
+    writeData(STORAGE_KEYS.MEMORIES, [...otherMemories, ...snapshot.memoriesSnapshot]);
+    window.dispatchEvent(new Event('storage-update'));
+    return true;
+  },
 
   saveHistory: (history: SessionHistory): void => {
     let all = readData<SessionHistory[]>(STORAGE_KEYS.HISTORY, []);

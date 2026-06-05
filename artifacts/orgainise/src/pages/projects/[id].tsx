@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
-import { MemoryItem, generateId, AiSuggestion } from "@/lib/storage";
+import { MemoryItem, generateId, AiSuggestion, RevisionSnapshot } from "@/lib/storage";
 import { useSyncedStorage as useStorage } from "@/lib/synced-storage";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -18,12 +18,13 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useAnalyzeSession, useGenerateContextBlock, useFocusedContextBlock } from "@workspace/api-client-react";
+import { useAnalyzeSession, useGenerateContextBlock, useFocusedContextBlock, useReviseMemories } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Trash2, Edit2, Copy, Download, BrainCircuit, Sparkles,
   Clock, CheckCircle2, XCircle, ArrowRight, RefreshCw, Database,
   Plus, GitMerge, X, Lock, Search, BookOpen,
+  Archive, RotateCcw, Wand2,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -34,6 +35,17 @@ import { markContextGenerated, hasGeneratedContext, isChecklistDismissed, dismis
 import { getCategoryExample, getCategoryHelpTip } from "@/lib/category-examples";
 import { GettingStartedCard } from "@/components/getting-started-card";
 import { InactivityHint } from "@/components/inactivity-hint";
+
+/* ─── Types ─────────────────────────────────────────────────────── */
+type RevisionMatch = {
+  memoryId: string;
+  currentText: string;
+  proposedAction: "keep" | "archive" | "rewrite" | "delete" | "recategorize";
+  proposedText?: string | null;
+  proposedCategory?: string | null;
+  reason: string;
+  confidence: "low" | "medium" | "high";
+};
 
 /* ─── InlineEdit ─────────────────────────────────────────────────── */
 function InlineEdit({
@@ -129,6 +141,19 @@ export default function ProjectDetail() {
   const [focusedResult, setFocusedResult]   = useState<{ content: string; matchedCount: number } | null>(null);
   const [lastFocusedQuery, setLastFocusedQuery] = useState("");
 
+  /* ── memory bank view ── */
+  const [showArchived, setShowArchived]         = useState(false);
+  const [lastRevisionLabel, setLastRevisionLabel] = useState<string | null>(null);
+
+  /* ── revise memories ── */
+  const [reviseOpen, setReviseOpen]                 = useState(false);
+  const [reviseStep, setReviseStep]                 = useState<1 | 2>(1);
+  const [revisionStatement, setRevisionStatement]   = useState("");
+  const [revisionSuggestions, setRevisionSuggestions] = useState<RevisionMatch[] | null>(null);
+  const [revisionSummary, setRevisionSummary]       = useState("");
+  const [revisionDecisions, setRevisionDecisions]   = useState<Record<string, "approve" | "reject">>({});
+  const [editedRevisions, setEditedRevisions]       = useState<Record<string, string>>({});
+
   /* ── demo / first-success ── */
   const isDemo = project?.id === DEMO_PROJECT_ID;
   const [contextEverGenerated, setContextEverGenerated] = useState(
@@ -170,6 +195,19 @@ export default function ProjectDetail() {
     },
   });
 
+  const reviseMemories = useReviseMemories({
+    mutation: {
+      onSuccess: r => {
+        setRevisionSuggestions(r.matches as RevisionMatch[]);
+        setRevisionSummary(r.summary);
+        setRevisionDecisions({});
+        setEditedRevisions({});
+        setReviseStep(2);
+      },
+      onError: () => toast({ title: "Analysis Failed", description: "Check your OpenAI API key or try again.", variant: "destructive" }),
+    },
+  });
+
   /* ── grouping — MUST live before the early-return to satisfy Rules of Hooks ── */
   const memoriesByCategory = useMemo(() => {
     if (!project) return {} as Record<string, MemoryItem[]>;
@@ -181,6 +219,11 @@ export default function ProjectDetail() {
     });
     return grouped;
   }, [memories, project?.categories]);
+
+  const archivedCount = useMemo(
+    () => memories.filter(m => m.importanceLevel === "archive-reference").length,
+    [memories],
+  );
 
   if (!project) {
     console.log(`[OrgAInise] ProjectDetail: id="${projectId}" — NOT FOUND in localStorage`);
@@ -392,6 +435,71 @@ export default function ProjectDetail() {
     toast({ title: "Saved to Project", description: `Added focused context for "${lastFocusedQuery}" to your Memory Bank.` });
   };
 
+  /* ─── Memory Bank handlers ────────────────────────────────────── */
+  const archiveMemory = (item: MemoryItem) => {
+    Storage.saveMemory({ ...item, importanceLevel: "archive-reference", updatedAt: new Date().toISOString() });
+    toast({ title: "Archived", description: "Item archived — toggle 'Show archived' to view it." });
+  };
+
+  const restoreMemory = (item: MemoryItem) => {
+    Storage.saveMemory({ ...item, importanceLevel: "useful-context", updatedAt: new Date().toISOString() });
+    toast({ title: "Restored", description: "Item restored to useful context." });
+  };
+
+  const handleUndoRevision = () => {
+    const snapshots = Storage.getSnapshots(project.id);
+    const latest = snapshots[0];
+    if (!latest) return;
+    Storage.restoreSnapshot(latest.id, project.id);
+    setLastRevisionLabel(null);
+    toast({ title: "Revision Undone", description: "Memories restored to pre-revision state." });
+  };
+
+  const handleApplyRevision = () => {
+    if (!revisionSuggestions) return;
+    const snapshot: RevisionSnapshot = {
+      id: generateId(),
+      projectId: project.id,
+      label: `Before: "${revisionStatement.slice(0, 60)}"`,
+      createdAt: new Date().toISOString(),
+      memoriesSnapshot: [...memories],
+    };
+    Storage.saveSnapshot(snapshot);
+
+    const approved = revisionSuggestions.filter(m => revisionDecisions[m.memoryId] === "approve");
+    let appliedCount = 0;
+    const now = new Date().toISOString();
+
+    for (const match of approved) {
+      const item = memories.find(m => m.id === match.memoryId);
+      if (!item) continue;
+      if (match.proposedAction === "archive") {
+        Storage.saveMemory({ ...item, importanceLevel: "archive-reference", updatedAt: now });
+        appliedCount++;
+      } else if (match.proposedAction === "rewrite") {
+        const newText = (editedRevisions[match.memoryId] ?? match.proposedText ?? item.text).trim();
+        if (newText) { Storage.saveMemory({ ...item, text: newText, updatedAt: now }); appliedCount++; }
+      } else if (match.proposedAction === "recategorize" && match.proposedCategory) {
+        const cat = project.categories.includes(match.proposedCategory) ? match.proposedCategory : item.category;
+        Storage.saveMemory({ ...item, category: cat, updatedAt: now });
+        appliedCount++;
+      } else if (match.proposedAction === "delete") {
+        Storage.deleteMemory(item.id);
+        appliedCount++;
+      }
+    }
+
+    saveField({ updatedAt: now });
+    setLastRevisionLabel(revisionStatement.slice(0, 60));
+    setRevisionStatement("");
+    setRevisionSuggestions(null);
+    setRevisionDecisions({});
+    setEditedRevisions({});
+    setReviseStep(1);
+    setReviseOpen(false);
+    toast({ title: "Revision Applied", description: `${appliedCount} memor${appliedCount === 1 ? "y" : "ies"} updated. Snapshot saved — undo available.` });
+  };
+
   const downloadTxt = () => {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([generatedContext], { type: "text/plain" }));
@@ -467,11 +575,20 @@ export default function ProjectDetail() {
 
           {/* ── MEMORY TAB ─────────────────────────────────────── */}
           <TabsContent value="memory" className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-semibold">Knowledge Graph</h2>
                 <HelpTip text="Save the facts, decisions, updates, and discoveries that matter. OrgAInise uses these to build better context for your AI conversations." />
               </div>
+              <div className="flex items-center gap-2">
+              {!isDemo && memories.length > 0 && (
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
+                  setReviseStep(1); setRevisionStatement(""); setRevisionSuggestions(null);
+                  setRevisionDecisions({}); setEditedRevisions({}); setReviseOpen(true);
+                }}>
+                  <Wand2 className="h-3.5 w-3.5" /> Revise Memories
+                </Button>
+              )}
               <Dialog open={isAddMemoryOpen} onOpenChange={setIsAddMemoryOpen}>
                 {!isDemo && (
                   <DialogTrigger asChild>
@@ -530,11 +647,38 @@ export default function ProjectDetail() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+              </div>
             </div>
+
+            <AnimatePresence>
+              {lastRevisionLabel && (
+                <motion.div key="undo-banner"
+                  initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/60 border border-border text-sm"
+                >
+                  <span className="text-muted-foreground truncate min-w-0 mr-3">
+                    Revision applied: <span className="text-foreground font-medium">"{lastRevisionLabel}"</span>
+                  </span>
+                  <Button variant="ghost" size="sm" className="shrink-0 gap-1.5" onClick={handleUndoRevision}>
+                    <RotateCcw className="h-3.5 w-3.5" /> Undo
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {archivedCount > 0 && (
+              <button
+                onClick={() => setShowArchived(v => !v)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors self-start"
+              >
+                {showArchived ? "▾ Hide archived" : `▸ Show archived (${archivedCount})`}
+              </button>
+            )}
 
             {/* Category list */}
             {Object.entries(memoriesByCategory).map(([category, items]) => {
-              if (items.length === 0 && category === "Uncategorized") return null;
+              const displayItems = showArchived ? items : items.filter(m => m.importanceLevel !== "archive-reference");
+              if (displayItems.length === 0) return null;
               const isUncategorized = category === "Uncategorized";
               return (
                 <div key={category} className="space-y-3">
@@ -597,36 +741,54 @@ export default function ProjectDetail() {
 
                   {/* Memory items */}
                   <div className="grid gap-3">
-                    {items.map(item => (
-                      <Card key={item.id} className="bg-card hover-elevate group transition-colors">
-                        <CardContent className="p-4 flex gap-4">
-                          <div className="flex-1">
-                            <p className="text-sm font-medium leading-relaxed">{item.text}</p>
-                            <div className="flex items-center gap-2 mt-3">
-                              <Badge
-                                variant={item.importanceLevel === "must-include" ? "destructive" : item.importanceLevel === "archive-reference" ? "outline" : "secondary"}
-                                className="text-[10px]"
-                              >
-                                {item.importanceLevel.replace("-", " ")}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">{format(new Date(item.updatedAt), "MMM d")}</span>
+                    {displayItems.map(item => {
+                      const isArchived = item.importanceLevel === "archive-reference";
+                      return (
+                        <Card key={item.id} className={cn("bg-card group transition-colors", isArchived ? "opacity-60 border-dashed" : "hover-elevate")}>
+                          <CardContent className="p-4 flex gap-4">
+                            <div className="flex-1">
+                              <p className={cn("text-sm font-medium leading-relaxed", isArchived && "text-muted-foreground")}>{item.text}</p>
+                              <div className="flex items-center gap-2 mt-3">
+                                <Badge
+                                  variant={item.importanceLevel === "must-include" ? "destructive" : item.importanceLevel === "archive-reference" ? "outline" : "secondary"}
+                                  className="text-[10px]"
+                                >
+                                  {item.importanceLevel.replace("-", " ")}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">{format(new Date(item.updatedAt), "MMM d")}</span>
+                              </div>
                             </div>
-                          </div>
-                          {!isDemo && (
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-2">
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
-                                onClick={() => { setEditingMemory(item); setMemoryForm({ text: item.text, category: item.category, importanceLevel: item.importanceLevel }); setIsAddMemoryOpen(true); }}>
-                                <Edit2 className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                onClick={() => { if (confirm("Delete this memory?")) Storage.deleteMemory(item.id); }}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
+                            {!isDemo && (
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-2">
+                                {isArchived ? (
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                    title="Restore memory"
+                                    onClick={() => restoreMemory(item)}>
+                                    <RotateCcw className="h-4 w-4" />
+                                  </Button>
+                                ) : (
+                                  <>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                      onClick={() => { setEditingMemory(item); setMemoryForm({ text: item.text, category: item.category, importanceLevel: item.importanceLevel }); setIsAddMemoryOpen(true); }}>
+                                      <Edit2 className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-amber-500"
+                                      title="Archive memory"
+                                      onClick={() => archiveMemory(item)}>
+                                      <Archive className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                  onClick={() => { if (confirm("Delete this memory?")) Storage.deleteMemory(item.id); }}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -1151,6 +1313,158 @@ export default function ProjectDetail() {
               <GitMerge className="mr-2 h-4 w-4" /> Merge
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── REVISE MEMORIES DIALOG ──────────────────────────────── */}
+      <Dialog open={reviseOpen} onOpenChange={open => {
+        if (!open) { setReviseOpen(false); setReviseStep(1); setRevisionStatement(""); setRevisionSuggestions(null); setRevisionDecisions({}); setEditedRevisions({}); }
+      }}>
+        <DialogContent className="max-w-2xl flex flex-col max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="h-5 w-5 text-primary" /> Revise Memories
+            </DialogTitle>
+            <DialogDescription>
+              Describe what changed in your project. The AI will find affected memories and propose what to archive, rewrite, or keep.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Step 1 — describe the change */}
+          {reviseStep === 1 && (
+            <div className="space-y-4 py-2">
+              <Textarea
+                placeholder={`e.g. "Keal is no longer canon — remove all references" or "Rename Kael to Caelen throughout"`}
+                value={revisionStatement}
+                onChange={e => setRevisionStatement(e.target.value)}
+                className="min-h-[120px]"
+                onKeyDown={e => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && revisionStatement.trim() && !reviseMemories.isPending) {
+                    reviseMemories.mutate({ data: { projectName: project.name, projectType: project.type, revisionStatement: revisionStatement.trim(), memoryItems: memories.filter(m => m.importanceLevel !== "archive-reference").map(m => ({ id: m.id, text: m.text, category: m.category, importanceLevel: m.importanceLevel, createdAt: m.createdAt })) } });
+                  }
+                }}
+              />
+              <div className="flex flex-wrap gap-2">
+                {[`"X is no longer canon"`, `"Rename X to Y throughout"`, `"The [system] changed fundamentally"`, `"This plot arc was cut"`].map(ex => (
+                  <button key={ex} onClick={() => setRevisionStatement(ex.replace(/^"|"$/g, ""))}
+                    className="text-xs px-3 py-1.5 rounded-full border border-border hover:border-primary/50 hover:text-primary transition-colors">
+                    {ex}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {memories.filter(m => m.importanceLevel !== "archive-reference").length} active memor{memories.filter(m => m.importanceLevel !== "archive-reference").length === 1 ? "y" : "ies"} will be analysed. ⌘+Enter to submit.
+              </p>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setReviseOpen(false)}>Cancel</Button>
+                <Button
+                  disabled={!revisionStatement.trim() || reviseMemories.isPending}
+                  onClick={() => reviseMemories.mutate({ data: { projectName: project.name, projectType: project.type, revisionStatement: revisionStatement.trim(), memoryItems: memories.filter(m => m.importanceLevel !== "archive-reference").map(m => ({ id: m.id, text: m.text, category: m.category, importanceLevel: m.importanceLevel, createdAt: m.createdAt })) } })}
+                >
+                  {reviseMemories.isPending ? (
+                    <><RefreshCw className="h-4 w-4 animate-spin mr-2" /> Analysing…</>
+                  ) : (
+                    <><ArrowRight className="h-4 w-4 mr-2" /> Find Affected Memories</>
+                  )}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {/* Step 2 — review suggestions */}
+          {reviseStep === 2 && revisionSuggestions !== null && (
+            <div className="flex flex-col gap-4 py-2 min-h-0 flex-1 overflow-hidden">
+              <p className="text-sm text-muted-foreground shrink-0">{revisionSummary}</p>
+
+              <div className="flex gap-2 flex-wrap shrink-0">
+                <Button variant="outline" size="sm" onClick={() => {
+                  const next: Record<string, "approve"> = {};
+                  revisionSuggestions.forEach(m => {
+                    if (m.proposedAction !== "keep" && m.proposedAction !== "delete") next[m.memoryId] = "approve";
+                  });
+                  setRevisionDecisions(next);
+                }}>Approve Safe Changes</Button>
+                <Button variant="outline" size="sm" onClick={() => setRevisionDecisions({})}>Clear All</Button>
+              </div>
+
+              <ScrollArea className="flex-1 min-h-0 pr-1">
+                <div className="space-y-3 pb-2">
+                  {revisionSuggestions.filter(m => m.proposedAction !== "keep").length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No changes proposed — all memories look good as-is.</p>
+                  ) : revisionSuggestions.filter(m => m.proposedAction !== "keep").map(match => {
+                    const decision = revisionDecisions[match.memoryId];
+                    const actionColour: Record<string, string> = {
+                      archive: "text-amber-600 bg-amber-500/10 border-amber-500/25",
+                      rewrite: "text-blue-600 bg-blue-500/10 border-blue-500/25",
+                      delete:  "text-destructive bg-destructive/5 border-destructive/25",
+                      recategorize: "text-purple-600 bg-purple-500/10 border-purple-500/25",
+                    };
+                    const confColour: Record<string, string> = { high: "text-green-600", medium: "text-amber-600", low: "text-muted-foreground" };
+                    return (
+                      <Card key={match.memoryId} className={cn("transition-colors border", decision === "approve" ? "border-primary/40 bg-primary/5" : decision === "reject" ? "opacity-40" : "")}>
+                        <CardContent className="p-4 space-y-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={cn("text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border", actionColour[match.proposedAction] ?? "")}>
+                              {match.proposedAction}
+                            </span>
+                            <span className={cn("text-xs", confColour[match.confidence] ?? "")}>
+                              {match.confidence} confidence
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground font-mono bg-muted/40 p-2 rounded leading-relaxed break-words">
+                            {match.currentText}
+                          </p>
+                          {match.proposedAction === "rewrite" && (
+                            <Textarea
+                              value={editedRevisions[match.memoryId] !== undefined ? editedRevisions[match.memoryId] : (match.proposedText ?? "")}
+                              onChange={e => setEditedRevisions(prev => ({ ...prev, [match.memoryId]: e.target.value }))}
+                              className="text-xs min-h-[72px]"
+                              placeholder="Proposed new text (editable)…"
+                            />
+                          )}
+                          {match.proposedAction === "archive" && (
+                            <p className="text-xs text-muted-foreground">→ Archived (kept, excluded from context by default)</p>
+                          )}
+                          {match.proposedAction === "recategorize" && match.proposedCategory && (
+                            <p className="text-xs text-muted-foreground">→ Move to: <span className="font-medium text-foreground">{match.proposedCategory}</span></p>
+                          )}
+                          {match.proposedAction === "delete" && (
+                            <p className="text-xs text-destructive font-medium">⚠ Permanent deletion — consider Archive instead</p>
+                          )}
+                          <p className="text-xs text-muted-foreground italic">{match.reason}</p>
+                          <div className="flex gap-2 pt-1">
+                            <Button variant={decision === "reject" ? "destructive" : "outline"} size="sm"
+                              onClick={() => setRevisionDecisions(prev => ({ ...prev, [match.memoryId]: "reject" }))}>
+                              <XCircle className="h-3.5 w-3.5 mr-1" /> Reject
+                            </Button>
+                            <Button variant={decision === "approve" ? "default" : "outline"} size="sm"
+                              onClick={() => setRevisionDecisions(prev => ({ ...prev, [match.memoryId]: "approve" }))}>
+                              <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Approve
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                  {revisionSuggestions.filter(m => m.proposedAction === "keep").length > 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-2">
+                      + {revisionSuggestions.filter(m => m.proposedAction === "keep").length} memor{revisionSuggestions.filter(m => m.proposedAction === "keep").length === 1 ? "y" : "ies"} unchanged.
+                    </p>
+                  )}
+                </div>
+              </ScrollArea>
+
+              <DialogFooter className="shrink-0">
+                <Button variant="ghost" onClick={() => setReviseStep(1)}>← Back</Button>
+                <Button
+                  disabled={Object.values(revisionDecisions).filter(v => v === "approve").length === 0}
+                  onClick={handleApplyRevision}
+                >
+                  Apply {Object.values(revisionDecisions).filter(v => v === "approve").length} Change{Object.values(revisionDecisions).filter(v => v === "approve").length !== 1 ? "s" : ""}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

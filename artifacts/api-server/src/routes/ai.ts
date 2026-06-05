@@ -7,6 +7,7 @@ import {
   GenerateContextBlockResponse,
   FocusedContextBlockBody,
   FocusedContextBlockResponse,
+  ReviseMemoriesBody,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -467,6 +468,113 @@ Identify the relevant items, generate the focused context block, and return JSON
       return;
     }
     res.status(503).json({ error: "Focused context search couldn't complete. Please try again shortly." });
+  }
+});
+
+/* ── POST /ai/revise-memories ──────────────────────────────────── */
+
+router.post("/ai/revise-memories", async (req, res): Promise<void> => {
+  const parsed = ReviseMemoriesBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const openai = getOpenAIClient();
+  if (!openai) { res.status(503).json({ error: "OpenAI API key not configured." }); return; }
+
+  const { projectName, projectType, revisionStatement, memoryItems } = parsed.data;
+
+  if (memoryItems.length === 0) {
+    res.json({ summary: "No active memories to analyse.", matches: [] });
+    return;
+  }
+
+  const numberedItems = memoryItems
+    .map((m, i) => `[${i + 1}] ID:${m.id} | Category: ${m.category} | Level: ${m.importanceLevel}\n"${m.text}"`)
+    .join("\n\n");
+
+  const systemPrompt = `You are an AI assistant helping a user maintain the memory bank of their project in OrgAInise.
+
+PROJECT: "${projectName}" (${projectType})
+REVISION: "${revisionStatement}"
+
+The user has described a change to their project. Analyse each memory item and decide whether it needs to change.
+
+ACTIONS:
+- "archive"      — the memory is outdated after this revision. Soft-archives it (kept, excluded from context). PREFER over "delete".
+- "rewrite"      — the memory is partially valid but needs updating. Provide complete new text in proposedText.
+- "recategorize" — the memory belongs in a different category. Provide the new category name in proposedCategory.
+- "delete"       — permanently remove. Use ONLY when archive is clearly insufficient and you have HIGH confidence.
+- "keep"         — the memory is unaffected. This is the default.
+
+RULES:
+1. Default bias: prefer "archive" over "delete"; prefer "keep" when impact is unclear.
+2. Low confidence items: use "keep" or "archive" — never "rewrite" or "delete" at low confidence.
+3. Rename requests (e.g. "rename Kael to Caelen"): propose "rewrite" for every memory mentioning the old name with corrected text.
+4. Only return items where proposedAction is NOT "keep". Unmentioned items are implicitly kept.
+5. "summary" = 1-2 plain English sentences describing what you found and proposed.
+6. Never use internal terms like "archive-reference" in reasons — use plain language.
+
+Return ONLY valid JSON (no markdown):
+{
+  "summary": "...",
+  "matches": [
+    {
+      "memoryId": "...",
+      "currentText": "...",
+      "proposedAction": "archive"|"rewrite"|"delete"|"recategorize",
+      "proposedText": "..." or null,
+      "proposedCategory": "..." or null,
+      "reason": "...",
+      "confidence": "low"|"medium"|"high"
+    }
+  ]
+}`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Memory items to analyse:\n\n${numberedItems}` },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.2,
+    });
+
+    const raw = completion.choices[0]?.message?.content ?? "{}";
+    let aiResult: { summary?: unknown; matches?: unknown };
+    try {
+      aiResult = JSON.parse(raw);
+    } catch {
+      req.log.error({ raw }, "revise-memories: failed to parse AI JSON");
+      res.status(503).json({ error: "AI returned invalid JSON." });
+      return;
+    }
+
+    const summary = typeof aiResult.summary === "string" ? aiResult.summary : "Analysis complete.";
+    const rawMatches = Array.isArray(aiResult.matches) ? aiResult.matches : [];
+    const validActions = new Set(["keep", "archive", "rewrite", "delete", "recategorize"]);
+    const validConf    = new Set(["low", "medium", "high"]);
+    const knownIds     = new Set(memoryItems.map(m => m.id));
+
+    const matches = rawMatches
+      .filter((m): m is Record<string, unknown> => typeof m === "object" && m !== null)
+      .filter(m => typeof m.memoryId === "string" && knownIds.has(m.memoryId as string))
+      .filter(m => validActions.has(m.proposedAction as string))
+      .filter(m => validConf.has(m.confidence as string))
+      .map(m => ({
+        memoryId:        m.memoryId as string,
+        currentText:     typeof m.currentText === "string" ? m.currentText : "",
+        proposedAction:  m.proposedAction as string,
+        proposedText:    typeof m.proposedText === "string" ? m.proposedText : null,
+        proposedCategory: typeof m.proposedCategory === "string" ? m.proposedCategory : null,
+        reason:          typeof m.reason === "string" ? m.reason : "",
+        confidence:      m.confidence as string,
+      }));
+
+    res.json({ summary, matches });
+  } catch (err) {
+    req.log.error({ err }, "revise-memories: OpenAI call failed");
+    res.status(503).json({ error: "AI service temporarily unavailable." });
   }
 });
 

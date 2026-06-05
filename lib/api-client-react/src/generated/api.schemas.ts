@@ -122,6 +122,65 @@ export interface ContextBlockResult {
   content: string;
 }
 
+export type ReviseMemoriesMemoryItemImportanceLevel = typeof ReviseMemoriesMemoryItemImportanceLevel[keyof typeof ReviseMemoriesMemoryItemImportanceLevel];
+
+
+export const ReviseMemoriesMemoryItemImportanceLevel = {
+  'must-include': 'must-include',
+  'useful-context': 'useful-context',
+  'archive-reference': 'archive-reference',
+} as const;
+
+export interface ReviseMemoriesMemoryItem {
+  id: string;
+  text: string;
+  category: string;
+  importanceLevel: ReviseMemoriesMemoryItemImportanceLevel;
+  createdAt: string;
+}
+
+export interface ReviseMemoriesInput {
+  projectName: string;
+  projectType: string;
+  revisionStatement: string;
+  memoryItems: ReviseMemoriesMemoryItem[];
+}
+
+export type RevisionMatchProposedAction = typeof RevisionMatchProposedAction[keyof typeof RevisionMatchProposedAction];
+
+
+export const RevisionMatchProposedAction = {
+  keep: 'keep',
+  archive: 'archive',
+  rewrite: 'rewrite',
+  delete: 'delete',
+  recategorize: 'recategorize',
+} as const;
+
+export type RevisionMatchConfidence = typeof RevisionMatchConfidence[keyof typeof RevisionMatchConfidence];
+
+
+export const RevisionMatchConfidence = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const;
+
+export interface RevisionMatch {
+  memoryId: string;
+  currentText: string;
+  proposedAction: RevisionMatchProposedAction;
+  proposedText?: string | null;
+  proposedCategory?: string | null;
+  reason: string;
+  confidence: RevisionMatchConfidence;
+}
+
+export interface ReviseMemoriesResult {
+  summary: string;
+  matches: RevisionMatch[];
+}
+
 export type FocusedContextMemoryItemImportanceLevel = typeof FocusedContextMemoryItemImportanceLevel[keyof typeof FocusedContextMemoryItemImportanceLevel];
 
 

@@ -39,6 +39,8 @@ import type {
   LogoutSuccess,
   MobileTokenExchangeRequest,
   MobileTokenExchangeSuccess,
+  ReviseMemoriesInput,
+  ReviseMemoriesResult,
   SessionAnalysisInput,
   SessionAnalysisResult,
   SyncBody,
@@ -277,6 +279,78 @@ export const useGenerateContextBlock = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getGenerateContextBlockMutationOptions(options));
+    }
+
+export const getReviseMemoriesUrl = () => {
+
+
+
+
+  return `/api/ai/revise-memories`
+}
+
+/**
+ * Returns proposed actions (archive, rewrite, recategorize, delete) for affected memories — does not mutate anything
+ * @summary Analyse project memories against a revision statement
+ */
+export const reviseMemories = async (reviseMemoriesInput: ReviseMemoriesInput, options?: RequestInit): Promise<ReviseMemoriesResult> => {
+
+  return customFetch<ReviseMemoriesResult>(getReviseMemoriesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      reviseMemoriesInput,)
+  }
+);}
+
+
+
+
+export const getReviseMemoriesMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviseMemories>>, TError,{data: BodyType<ReviseMemoriesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviseMemories>>, TError,{data: BodyType<ReviseMemoriesInput>}, TContext> => {
+
+const mutationKey = ['reviseMemories'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviseMemories>>, {data: BodyType<ReviseMemoriesInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  reviseMemories(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviseMemoriesMutationResult = NonNullable<Awaited<ReturnType<typeof reviseMemories>>>
+    export type ReviseMemoriesMutationBody = BodyType<ReviseMemoriesInput>
+    export type ReviseMemoriesMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Analyse project memories against a revision statement
+ */
+export const useReviseMemories = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviseMemories>>, TError,{data: BodyType<ReviseMemoriesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reviseMemories>>,
+        TError,
+        {data: BodyType<ReviseMemoriesInput>},
+        TContext
+      > => {
+      return useMutation(getReviseMemoriesMutationOptions(options));
     }
 
 export const getFocusedContextBlockUrl = () => {
