@@ -1320,7 +1320,10 @@ export default function ProjectDetail() {
       <Dialog open={reviseOpen} onOpenChange={open => {
         if (!open) { setReviseOpen(false); setReviseStep(1); setRevisionStatement(""); setRevisionSuggestions(null); setRevisionDecisions({}); setEditedRevisions({}); }
       }}>
-        <DialogContent className="max-w-2xl flex flex-col max-h-[90vh]">
+        <DialogContent
+          className="max-w-2xl flex flex-col max-h-[90vh] overflow-hidden"
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Wand2 className="h-5 w-5 text-primary" /> Revise Memories
@@ -1387,7 +1390,7 @@ export default function ProjectDetail() {
                 <Button variant="outline" size="sm" onClick={() => setRevisionDecisions({})}>Clear All</Button>
               </div>
 
-              <ScrollArea className="flex-1 min-h-0 pr-1">
+              <div className="flex-1 min-h-0 overflow-y-auto pr-2" style={{ overflowY: "auto" }}>
                 <div className="space-y-3 pb-2">
                   {revisionSuggestions.filter(m => m.proposedAction !== "keep").length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">No changes proposed — all memories look good as-is.</p>
@@ -1452,7 +1455,7 @@ export default function ProjectDetail() {
                     </p>
                   )}
                 </div>
-              </ScrollArea>
+              </div>
 
               <DialogFooter className="shrink-0">
                 <Button variant="ghost" onClick={() => setReviseStep(1)}>← Back</Button>
