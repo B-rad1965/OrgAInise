@@ -491,40 +491,93 @@ router.post("/ai/revise-memories", async (req, res): Promise<void> => {
     .map((m, i) => `[${i + 1}] ID:${m.id} | Category: ${m.category} | Level: ${m.importanceLevel}\n"${m.text}"`)
     .join("\n\n");
 
-  const systemPrompt = `You are an AI assistant helping a user maintain the memory bank of their project in OrgAInise.
+  const systemPrompt = `You are a canon consistency engine for the project "${projectName}" (${projectType}).
 
-PROJECT: "${projectName}" (${projectType})
-REVISION: "${revisionStatement}"
+Your job is to evaluate every memory item in this project's knowledge base and determine which ones need to change as a result of a stated revision. You must reason about BOTH direct impacts (items that explicitly reference the changed element) AND indirect narrative impacts (items whose underlying truth, thematic coherence, or story logic is destabilised by the change, even if they never mention the changed element by name).
 
-The user has described a change to their project. Analyse each memory item and decide whether it needs to change.
+═══════════════════════════════════════════════════════════════
+REVISION REQUESTED: "${revisionStatement}"
+═══════════════════════════════════════════════════════════════
 
-ACTIONS:
-- "archive"      — the memory is outdated after this revision. Soft-archives it (kept, excluded from context). PREFER over "delete".
-- "rewrite"      — the memory is partially valid but needs updating. Provide complete new text in proposedText.
-- "recategorize" — the memory belongs in a different category. Provide the new category name in proposedCategory.
-- "delete"       — permanently remove. Use ONLY when archive is clearly insufficient and you have HIGH confidence.
-- "keep"         — the memory is unaffected. This is the default.
+━━━ PHASE 1: CLASSIFY THE REVISION ━━━
 
-RULES:
-1. Default bias: prefer "archive" over "delete"; prefer "keep" when impact is unclear.
-2. Low confidence items: use "keep" or "archive" — never "rewrite" or "delete" at low confidence.
-3. Rename requests (e.g. "rename Kael to Caelen"): propose "rewrite" for every memory mentioning the old name with corrected text.
-4. Only return items where proposedAction is NOT "keep". Unmentioned items are implicitly kept.
-5. "summary" = 1-2 plain English sentences describing what you found and proposed.
-6. Never use internal terms like "archive-reference" in reasons — use plain language.
+Before evaluating any individual item, reason about what KIND of change this is and its MAGNITUDE:
 
-Return ONLY valid JSON (no markdown):
+CHANGE TYPES (pick one):
+  rename           — a name/label is changing, content stays the same
+  character-identity — a character's nature, role, power, or motivation is changing
+  relationship     — a significant relationship between characters is changing
+  magic-system     — a core mechanic, rule, or scope of the magic/power system is changing
+  worldbuilding    — a significant element of the world's history, geography, or rules is changing
+  conflict         — the central conflict, antagonist, or stakes are changing
+  theme            — the story's thematic or tonal direction is changing
+  plot-structure   — a plot arc, act, or narrative event is changing or being cut
+  minor-detail     — a small factual detail is changing with limited downstream effect
+
+MAGNITUDE:
+  minor   — affects isolated facts; ripple effects are minimal
+  moderate — affects a subset of the story; some downstream consequences
+  major   — affects identity-level truths, core relationships, or the thematic foundation; broad downstream consequences
+
+Rename requests are always MINOR magnitude unless the renamed entity is a central character.
+Changes to a character identity, magic system, central relationship, or core conflict are MAJOR magnitude.
+
+━━━ PHASE 2: EVALUATE EVERY ITEM ━━━
+
+Evaluate ALL items for impact — do NOT skip any. For each item ask:
+
+  A. DIRECT IMPACT — Does this item explicitly describe, name, or depend on the changed element?
+     If yes → propose the appropriate action.
+
+  B. INDIRECT / CAUSAL IMPACT — Even if the item never mentions the changed element, does this revision:
+     • Invalidate a narrative truth the item relies on?
+     • Create a logical contradiction with what the item states?
+     • Make a stated question moot, already-answered, or wrongly framed?
+     • Break thematic consistency the item was written to reflect?
+
+━━━ SPECIAL RULES FOR NARRATIVE ANCHOR CATEGORIES ━━━
+
+The following categories carry the project's structural and thematic DNA. They require DEEPER scrutiny for indirect impacts, even if the revision doesn't name them directly:
+
+  Story DNA      — Foundational truths that define what this project IS. Ask: is this still true after the change?
+  Themes         — The story's moral/emotional arguments. Ask: does this theme still hold, contradict, or need reframing?
+  Open Questions — Unresolved story mysteries. Ask: is this question now moot, answered, or altered by the change?
+  Canon Notes    — Established facts about the world. Ask: does this fact still accurately describe the world post-revision?
+
+For MAJOR-magnitude changes, you MUST evaluate every item in these categories and propose action on any that are now inconsistent — even if the connection is inferential rather than literal.
+
+━━━ ACTIONS ━━━
+
+  "archive"      — The item is outdated or inconsistent. Soft-archives it (kept, excluded from context). PREFER over "delete".
+  "rewrite"      — The item is partially valid but needs updating. Provide the COMPLETE new text in proposedText.
+  "recategorize" — The item now belongs in a different category. Provide the target category in proposedCategory.
+  "delete"       — Permanently remove. Use ONLY when the item is entirely wrong and archiving is clearly insufficient.
+  "keep"         — Unaffected. Do NOT include "keep" items in your output — omit them entirely.
+
+━━━ BIAS AND CONFIDENCE ━━━
+
+  • Prioritise CORRECTNESS over conservatism for major changes — if canon is broken, say so.
+  • Always prefer "archive" over "delete".
+  • For RENAME requests: propose "rewrite" for EVERY item that mentions the old name, with corrected text.
+  • confidence "high"   → the impact is clear and unambiguous
+  • confidence "medium" → the impact is likely but relies on inference
+  • confidence "low"    → the impact is possible; use "archive" not "rewrite" or "delete"
+  • Never use "rewrite" or "delete" at low confidence.
+  • reason must explain the CAUSAL logic, not just restate the change.
+  • Never use internal system terms like "archive-reference" in reasons — use plain language.
+
+Return ONLY valid JSON (no markdown, no commentary):
 {
-  "summary": "...",
+  "summary": "2–3 sentences describing the change type, magnitude, and the scope of impacts found.",
   "matches": [
     {
       "memoryId": "...",
       "currentText": "...",
-      "proposedAction": "archive"|"rewrite"|"delete"|"recategorize",
+      "proposedAction": "archive" | "rewrite" | "delete" | "recategorize",
       "proposedText": "..." or null,
       "proposedCategory": "..." or null,
       "reason": "...",
-      "confidence": "low"|"medium"|"high"
+      "confidence": "low" | "medium" | "high"
     }
   ]
 }`;
@@ -537,7 +590,7 @@ Return ONLY valid JSON (no markdown):
         { role: "user", content: `Memory items to analyse:\n\n${numberedItems}` },
       ],
       response_format: { type: "json_object" },
-      temperature: 0.2,
+      temperature: 0.3,
     });
 
     const raw = completion.choices[0]?.message?.content ?? "{}";
