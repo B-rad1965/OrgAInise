@@ -40,7 +40,7 @@ import { InactivityHint } from "@/components/inactivity-hint";
 type RevisionMatch = {
   memoryId: string;
   currentText: string;
-  proposedAction: "keep" | "archive" | "rewrite" | "delete" | "recategorize";
+  proposedAction: "keep" | "archive" | "rewrite" | "delete" | "recategorize" | "review";
   proposedText?: string | null;
   proposedCategory?: string | null;
   reason: string;
@@ -482,6 +482,9 @@ export default function ProjectDetail() {
       } else if (match.proposedAction === "recategorize" && match.proposedCategory) {
         const cat = project.categories.includes(match.proposedCategory) ? match.proposedCategory : item.category;
         Storage.saveMemory({ ...item, category: cat, updatedAt: now });
+        appliedCount++;
+      } else if (match.proposedAction === "review") {
+        Storage.saveMemory({ ...item, importanceLevel: "archive-reference", updatedAt: now });
         appliedCount++;
       } else if (match.proposedAction === "delete") {
         Storage.deleteMemory(item.id);
@@ -1383,7 +1386,7 @@ export default function ProjectDetail() {
                 <Button variant="outline" size="sm" onClick={() => {
                   const next: Record<string, "approve"> = {};
                   revisionSuggestions.forEach(m => {
-                    if (m.proposedAction !== "keep" && m.proposedAction !== "delete") next[m.memoryId] = "approve";
+                    if (m.proposedAction !== "keep" && m.proposedAction !== "delete" && m.proposedAction !== "review") next[m.memoryId] = "approve";
                   });
                   setRevisionDecisions(next);
                 }}>Approve Safe Changes</Button>
@@ -1397,10 +1400,11 @@ export default function ProjectDetail() {
                   ) : revisionSuggestions.filter(m => m.proposedAction !== "keep").map(match => {
                     const decision = revisionDecisions[match.memoryId];
                     const actionColour: Record<string, string> = {
-                      archive: "text-amber-600 bg-amber-500/10 border-amber-500/25",
-                      rewrite: "text-blue-600 bg-blue-500/10 border-blue-500/25",
-                      delete:  "text-destructive bg-destructive/5 border-destructive/25",
+                      archive:      "text-amber-600 bg-amber-500/10 border-amber-500/25",
+                      rewrite:      "text-blue-600 bg-blue-500/10 border-blue-500/25",
+                      delete:       "text-destructive bg-destructive/5 border-destructive/25",
                       recategorize: "text-purple-600 bg-purple-500/10 border-purple-500/25",
+                      review:       "text-indigo-600 bg-indigo-500/10 border-indigo-500/25",
                     };
                     const confColour: Record<string, string> = { high: "text-green-600", medium: "text-amber-600", low: "text-muted-foreground" };
                     return (
@@ -1430,6 +1434,9 @@ export default function ProjectDetail() {
                           )}
                           {match.proposedAction === "recategorize" && match.proposedCategory && (
                             <p className="text-xs text-muted-foreground">→ Move to: <span className="font-medium text-foreground">{match.proposedCategory}</span></p>
+                          )}
+                          {match.proposedAction === "review" && (
+                            <p className="text-xs text-indigo-600 font-medium">⚑ Flagged for review — approve to archive (reversible), reject to leave unchanged</p>
                           )}
                           {match.proposedAction === "delete" && (
                             <p className="text-xs text-destructive font-medium">⚠ Permanent deletion — consider Archive instead</p>

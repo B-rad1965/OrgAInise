@@ -552,28 +552,50 @@ For MAJOR-magnitude changes, you MUST evaluate every item in these categories an
   "rewrite"      — The item is partially valid but needs updating. Provide the COMPLETE new text in proposedText.
   "recategorize" — The item now belongs in a different category. Provide the target category in proposedCategory.
   "delete"       — Permanently remove. Use ONLY when the item is entirely wrong and archiving is clearly insufficient.
+  "review"       — Flag for user attention. The memory plausibly conflicts with or relates to the revision but a confident rewrite cannot be proposed. The user will read it and decide. Use this rather than silently omitting uncertain impacts.
   "keep"         — Unaffected. Do NOT include "keep" items in your output — omit them entirely.
+
+━━━ PHASE 3: MANDATORY IMPACT SCAN (MODERATE AND MAJOR REVISIONS) ━━━
+
+After completing Phase 2, if the revision is MODERATE or MAJOR magnitude you MUST perform this scan on every item NOT already flagged:
+
+Step 1 — Extract concepts from the revision statement:
+  • RETIRED concepts: names, lore terms, entities, systems, or ideas being replaced or removed
+  • NEW concepts: names, lore terms, systems, or ideas being introduced
+  • AFFECTED domains: characters, locations, factions, magic systems, relationships, plot arcs, themes
+
+Step 2 — For each unflagged memory, evaluate semantically (not by keyword alone):
+  • Does this memory reference a retired concept — even indirectly, by implication, or by being logically downstream of it?
+  • Does this memory describe a relationship, rule, or world-truth that the revision destabilises?
+  • Would this memory mislead a reader who encountered it after the revision?
+  • Is this an Open Question that is now moot, wrongly framed, or already answered by the change?
+  • Is this a Theme, Story DNA entry, or Canon Note that now contradicts or no longer coheres with the revised direction?
+
+Step 3 — Flag any memory that passes the scan as "review" with a clear reason.
+
+CRITICAL RULE: For MAJOR-magnitude revisions, you MUST NOT return an empty matches list without having completed this scan. It is far better to over-flag with "review" than to silently omit a memory that a user will later discover manually conflicts with the revision. When in doubt, flag it — the user decides what to do.
 
 ━━━ BIAS AND CONFIDENCE ━━━
 
   • Prioritise CORRECTNESS over conservatism for major changes — if canon is broken, say so.
   • Always prefer "archive" over "delete".
+  • "review" is the safe fallback for uncertain impacts — prefer it over both "keep" and "delete" when impact is plausible but not provable.
   • For RENAME requests: propose "rewrite" for EVERY item that mentions the old name, with corrected text.
   • confidence "high"   → the impact is clear and unambiguous
   • confidence "medium" → the impact is likely but relies on inference
-  • confidence "low"    → the impact is possible; use "archive" not "rewrite" or "delete"
+  • confidence "low"    → the impact is possible; use "review" or "archive", never "rewrite" or "delete"
   • Never use "rewrite" or "delete" at low confidence.
-  • reason must explain the CAUSAL logic, not just restate the change.
+  • reason must explain the CAUSAL logic, not just restate the change. For "review" items, explain what specific conflict or uncertainty prompted the flag.
   • Never use internal system terms like "archive-reference" in reasons — use plain language.
 
 Return ONLY valid JSON (no markdown, no commentary):
 {
-  "summary": "2–3 sentences describing the change type, magnitude, and the scope of impacts found.",
+  "summary": "2–3 sentences describing the change type, magnitude, and the scope of direct and indirect impacts found.",
   "matches": [
     {
       "memoryId": "...",
       "currentText": "...",
-      "proposedAction": "archive" | "rewrite" | "delete" | "recategorize",
+      "proposedAction": "archive" | "rewrite" | "delete" | "recategorize" | "review",
       "proposedText": "..." or null,
       "proposedCategory": "..." or null,
       "reason": "...",
@@ -605,7 +627,7 @@ Return ONLY valid JSON (no markdown, no commentary):
 
     const summary = typeof aiResult.summary === "string" ? aiResult.summary : "Analysis complete.";
     const rawMatches = Array.isArray(aiResult.matches) ? aiResult.matches : [];
-    const validActions = new Set(["keep", "archive", "rewrite", "delete", "recategorize"]);
+    const validActions = new Set(["keep", "archive", "rewrite", "delete", "recategorize", "review"]);
     const validConf    = new Set(["low", "medium", "high"]);
     const knownIds     = new Set(memoryItems.map(m => m.id));
 
