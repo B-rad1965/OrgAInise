@@ -555,16 +555,18 @@ For MAJOR-magnitude changes, you MUST evaluate every item in these categories an
   "review"       — Flag for user attention. The memory plausibly conflicts with or relates to the revision but a confident rewrite cannot be proposed. The user will read it and decide. Use this rather than silently omitting uncertain impacts.
   "keep"         — Unaffected. Do NOT include "keep" items in your output — omit them entirely.
 
-━━━ PHASE 3: MANDATORY IMPACT SCAN (MODERATE AND MAJOR REVISIONS) ━━━
+━━━ PHASE 3: DEPENDENCY EXPANSION SCAN ━━━
 
-After completing Phase 2, if the revision is MODERATE or MAJOR magnitude you MUST perform this scan on every item NOT already flagged:
+This phase runs for MODERATE and MAJOR revisions AND as a mandatory zero-result gate for any revision where Phase 2 produced no matches.
+
+ZERO-RESULT GATE: If Phase 2 produced zero matches, you MUST complete this phase before concluding the revision affects nothing. Do not return an empty matches list until this scan is finished and confirmed empty.
 
 Step 1 — Extract primary concepts from the revision statement:
   • RETIRED concepts: names, lore terms, entities, systems, or ideas being replaced or removed
   • NEW concepts: names, lore terms, systems, or ideas being introduced
   • AFFECTED domains: characters, locations, factions, magic systems, relationships, plot arcs, themes
 
-Step 2 — DEPENDENCY EXPANSION: before scanning memories, expand each retired/changed primary concept into a dependency set.
+Step 2 — DEPENDENCY EXPANSION: expand each retired/changed primary concept into a dependency set before scanning.
 For each primary concept, ask:
   • Which named entities (characters, creatures, places, artefacts, organisations) are defined by, derived from, or only make sense because of this concept?
   • Which relationships between characters or factions are premised on this concept?
@@ -572,22 +574,22 @@ For each primary concept, ask:
   • Which writing guidance, tonal instructions, or craft notes exist specifically to support this concept?
   • Which world-truths, rules, or histories only hold if this concept is true?
 
-Collect all of these into an EXPANDED CONCEPT SET. The scan in Step 3 operates against this expanded set — not just the primary concepts. A memory does NOT need to mention the primary concept by name to be flagged; it only needs to reference something in the expanded set.
+Collect all of these into an EXPANDED CONCEPT SET. The scan in Step 3 runs against this expanded set — not just the primary concept names. A memory does NOT need to mention the primary concept by name; it only needs to reference something in the expanded set.
 
-Step 3 — For EVERY unflagged memory, test it against the expanded concept set:
+Step 3 — Test EVERY memory not already flagged against the expanded concept set:
   • Does it reference an entity, relationship, question, theory, or rule that is in the expanded set?
   • Does it describe world-state that only holds if the retired concept is still true?
   • Does it belong to a category in scope of the revision (Themes, Story DNA, Open Questions, Canon Notes)?
-  • Would a reader encountering this memory after the revision find it inconsistent or misleading — even if the retired concept is never mentioned?
+  • Would a reader encountering this memory after the revision find it inconsistent or misleading — even if the primary concept is never named?
 
 THE INCLUSION BAR IS: "This memory references something in the expanded concept set."
-You do NOT need to be confident about the specific impact. Referencing an entity, question, relationship, or theory that belongs to the retired concept is sufficient reason to flag the memory as "review". Do not silently omit it — return it and let the user decide.
+Referencing an entity, question, relationship, or theory that belongs to the retired concept is sufficient. Confidence about the specific impact is not required — flag it as "review" and let the user decide.
 
-Step 4 — Include ALL memories that passed Step 3 as "review" with a reason that names the specific dependency found (not just a restatement of the revision). Example: "References [Entity X], which is derived from the retired [Primary Concept] — its meaning may change under the new direction."
+Step 4 — Include ALL memories that passed Step 3 as "review" with a reason that names the specific dependency found. Example: "References [Entity X], which derives from the retired [Primary Concept] — its meaning may change under the new direction."
 
-Step 5 — Count how many memories remain unflagged. If more than 60% of the total input memories are unflagged after a MAJOR revision, re-examine the unflagged ones — it is statistically unlikely that a major change has no indirect effects across most of the memory bank.
+Step 5 — Count unflagged memories. If more than 60% remain unflagged after a MAJOR revision, re-examine them — a major change rarely leaves most of the memory bank untouched.
 
-CRITICAL RULE: For MAJOR-magnitude revisions, you MUST NOT return an empty matches list without completing this full scan. Over-flagging with "review" is always preferable to silently omitting a memory the user will later discover manually.
+CRITICAL RULE: You MUST NOT return an empty matches list for any revision until this dependency expansion scan is complete. If the scan finds expanded matches, surface them as "review" candidates. Only return zero matches if the expanded concept set produces no hits across the full memory bank.
 
 ━━━ BIAS AND CONFIDENCE ━━━
 
