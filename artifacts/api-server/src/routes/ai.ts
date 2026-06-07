@@ -564,16 +564,21 @@ Step 1 — Extract concepts from the revision statement:
   • NEW concepts: names, lore terms, systems, or ideas being introduced
   • AFFECTED domains: characters, locations, factions, magic systems, relationships, plot arcs, themes
 
-Step 2 — For each unflagged memory, evaluate semantically (not by keyword alone):
-  • Does this memory reference a retired concept — even indirectly, by implication, or by being logically downstream of it?
-  • Does this memory describe a relationship, rule, or world-truth that the revision destabilises?
-  • Would this memory mislead a reader who encountered it after the revision?
-  • Is this an Open Question that is now moot, wrongly framed, or already answered by the change?
-  • Is this a Theme, Story DNA entry, or Canon Note that now contradicts or no longer coheres with the revised direction?
+Step 2 — For EVERY unflagged memory, ask whether it shares conceptual, thematic, categorical, or narrative territory with the revision:
+  • Does it mention or depend on any retired concept — directly, indirectly, or by implication?
+  • Does it describe a relationship, rule, entity, or world-truth the revision destabilises?
+  • Does it belong to a category in scope of the revision (Themes, Story DNA, Open Questions, Canon Notes for a major lore change)?
+  • Would a reader encountering this memory after the revision find it inconsistent or misleading?
+  • Is it an Open Question now moot, reframed, or already answered by the change?
 
-Step 3 — Flag any memory that passes the scan as "review" with a clear reason.
+THE INCLUSION BAR IS: "I found a conceptual connection."
+You do NOT need to be confident about the specific impact. The mere fact that a memory shares domain, concept, entity, or thematic territory with the revision is sufficient reason to include it as "review". Do not make the keep/discard decision for the user by silently omitting it — return it and let them decide.
 
-CRITICAL RULE: For MAJOR-magnitude revisions, you MUST NOT return an empty matches list without having completed this scan. It is far better to over-flag with "review" than to silently omit a memory that a user will later discover manually conflicts with the revision. When in doubt, flag it — the user decides what to do.
+Step 3 — Include ALL memories that passed Step 2 as "review" with a reason explaining the specific connection found, not just a restatement of the revision.
+
+Step 4 — Count how many memories remain unflagged (neither in matches nor in scan). If more than 60% of the total input memories are unflagged after a MAJOR revision, re-examine the unflagged ones — it is statistically unlikely that a major lore or character change has no indirect effects across most of the memory bank.
+
+CRITICAL RULE: For MAJOR-magnitude revisions, you MUST NOT return an empty matches list without completing this full scan. Over-flagging with "review" is always preferable to silently omitting a memory the user will later discover manually.
 
 ━━━ BIAS AND CONFIDENCE ━━━
 
@@ -591,6 +596,7 @@ CRITICAL RULE: For MAJOR-magnitude revisions, you MUST NOT return an empty match
 Return ONLY valid JSON (no markdown, no commentary):
 {
   "summary": "2–3 sentences describing the change type, magnitude, and the scope of direct and indirect impacts found.",
+  "totalScanned": <integer — total number of memory items you evaluated across all phases>,
   "matches": [
     {
       "memoryId": "...",
@@ -625,7 +631,10 @@ Return ONLY valid JSON (no markdown, no commentary):
       return;
     }
 
-    const summary = typeof aiResult.summary === "string" ? aiResult.summary : "Analysis complete.";
+    const summary      = typeof aiResult.summary === "string" ? aiResult.summary : "Analysis complete.";
+    const totalScanned = typeof (aiResult as Record<string, unknown>).totalScanned === "number"
+      ? (aiResult as Record<string, unknown>).totalScanned as number
+      : memoryItems.length;
     const rawMatches = Array.isArray(aiResult.matches) ? aiResult.matches : [];
     const validActions = new Set(["keep", "archive", "rewrite", "delete", "recategorize", "review"]);
     const validConf    = new Set(["low", "medium", "high"]);
@@ -646,7 +655,7 @@ Return ONLY valid JSON (no markdown, no commentary):
         confidence:      m.confidence as string,
       }));
 
-    res.json({ summary, matches });
+    res.json({ summary, totalScanned, matches });
   } catch (err) {
     req.log.error({ err }, "revise-memories: OpenAI call failed");
     res.status(503).json({ error: "AI service temporarily unavailable." });

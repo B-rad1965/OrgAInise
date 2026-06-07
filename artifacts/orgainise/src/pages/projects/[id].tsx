@@ -151,6 +151,7 @@ export default function ProjectDetail() {
   const [revisionStatement, setRevisionStatement]   = useState("");
   const [revisionSuggestions, setRevisionSuggestions] = useState<RevisionMatch[] | null>(null);
   const [revisionSummary, setRevisionSummary]       = useState("");
+  const [revisionScannedCount, setRevisionScannedCount] = useState(0);
   const [revisionDecisions, setRevisionDecisions]   = useState<Record<string, "approve" | "reject">>({});
   const [editedRevisions, setEditedRevisions]       = useState<Record<string, string>>({});
 
@@ -200,6 +201,9 @@ export default function ProjectDetail() {
       onSuccess: r => {
         setRevisionSuggestions(r.matches as RevisionMatch[]);
         setRevisionSummary(r.summary);
+        setRevisionScannedCount(typeof (r as unknown as Record<string, unknown>).totalScanned === "number"
+          ? (r as unknown as Record<string, unknown>).totalScanned as number
+          : r.matches.length);
         setRevisionDecisions({});
         setEditedRevisions({});
         setReviseStep(2);
@@ -1381,6 +1385,16 @@ export default function ProjectDetail() {
           {reviseStep === 2 && revisionSuggestions !== null && (
             <div className="flex flex-col gap-4 py-2 min-h-0 flex-1 overflow-hidden">
               <p className="text-sm text-muted-foreground shrink-0">{revisionSummary}</p>
+
+              {revisionScannedCount > 0 && (
+                <p className="text-xs text-muted-foreground/70 shrink-0 tabular-nums">
+                  {revisionScannedCount} memor{revisionScannedCount === 1 ? "y" : "ies"} scanned
+                  {" · "}
+                  {revisionSuggestions!.filter(m => m.proposedAction !== "keep").length} flagged
+                  {" · "}
+                  {revisionScannedCount - revisionSuggestions!.filter(m => m.proposedAction !== "keep").length} confirmed clear
+                </p>
+              )}
 
               <div className="flex gap-2 flex-wrap shrink-0">
                 <Button variant="outline" size="sm" onClick={() => {
