@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, X, ArrowRight, Save, LayoutTemplate } from "lucide-react";
+import { Plus, X, ArrowRight, Save, LayoutTemplate, PackagePlus } from "lucide-react";
 import { generateId, Project } from "@/lib/storage";
+import { STANDARD_WRITING_CATEGORY_NAMES, GENRE_PACKS, STANDARD_WRITING_CATEGORIES } from "@/lib/writing-categories";
 import { useSyncedStorage as useStorage } from "@/lib/synced-storage";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -36,18 +37,7 @@ const CATEGORIES_BY_TYPE: Record<string, string[]> = {
     "Known Issues",
     "Future Ideas",
   ],
-  "Writing / Worldbuilding": [
-    "Characters",
-    "Plot Threads",
-    "Worldbuilding",
-    "Lore / Magic / Rules",
-    "Locations",
-    "Themes",
-    "Story DNA",
-    "Open Questions",
-    "Canon Notes",
-    "Dialogue / Signature Lines",
-  ],
+  "Writing / Worldbuilding": STANDARD_WRITING_CATEGORY_NAMES,
   "Business / Startup": [
     "Business Model",
     "Target Market",
@@ -104,6 +94,8 @@ export default function CreateProject() {
   const [step, setStep] = useState<1 | 2>(1);
   const [categories, setCategories] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState("");
+  const [appliedGenrePacks, setAppliedGenrePacks] = useState<Set<string>>(new Set());
+  const [expandedPack, setExpandedPack] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof step1Schema>>({
     resolver: zodResolver(step1Schema),
@@ -116,6 +108,8 @@ export default function CreateProject() {
   function onStep1Submit() {
     const type = form.getValues("type");
     setCategories(CATEGORIES_BY_TYPE[type] ?? CATEGORIES_BY_TYPE["Custom"]);
+    setAppliedGenrePacks(new Set());
+    setExpandedPack(null);
     setStep(2);
   }
 
@@ -130,6 +124,15 @@ export default function CreateProject() {
 
   function handleRemoveCategory(cat: string) {
     setCategories(prev => prev.filter(c => c !== cat));
+  }
+
+  function handleApplyGenrePack(packName: string) {
+    const packCats = GENRE_PACKS[packName] ?? [];
+    setCategories(prev => {
+      const toAdd = packCats.filter(c => !prev.includes(c));
+      return [...prev, ...toAdd];
+    });
+    setAppliedGenrePacks(prev => new Set([...prev, packName]));
   }
 
   function handleSaveProject() {
@@ -306,6 +309,70 @@ export default function CreateProject() {
                       <Plus className="h-4 w-4 mr-1" /> Add
                     </Button>
                   </form>
+
+                  {selectedType === "Writing / Worldbuilding" && (
+                    <div className="border-t border-border/50 pt-4 space-y-3">
+                      <div>
+                        <h4 className="text-sm font-medium flex items-center gap-2 text-muted-foreground mb-1">
+                          <PackagePlus className="h-4 w-4" /> Genre Packs
+                        </h4>
+                        <p className="text-xs text-muted-foreground mb-3">Add optional genre-specific categories to your project.</p>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(GENRE_PACKS).map(([packName, packCats]) => {
+                            const applied = appliedGenrePacks.has(packName);
+                            const isExpanded = expandedPack === packName;
+                            return (
+                              <div key={packName} className="flex flex-col gap-1">
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => !applied && handleApplyGenrePack(packName)}
+                                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                                      applied
+                                        ? "bg-primary/10 border-primary/30 text-primary cursor-default"
+                                        : "bg-background border-border hover:border-primary/40 text-muted-foreground hover:text-foreground cursor-pointer"
+                                    }`}
+                                  >
+                                    {applied ? "✓ " : "+ "}{packName}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedPack(isExpanded ? null : packName)}
+                                    className="text-[10px] text-muted-foreground hover:text-foreground transition-colors px-1"
+                                    title="Preview categories"
+                                  >
+                                    {isExpanded ? "▲" : "▼"}
+                                  </button>
+                                </div>
+                                {isExpanded && (
+                                  <motion.div
+                                    initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                                    className="ml-1 flex flex-wrap gap-1"
+                                  >
+                                    {packCats.map(c => (
+                                      <span key={c} className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground border border-border/40">{c}</span>
+                                    ))}
+                                  </motion.div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="border-t border-border/30 pt-3">
+                        <p className="text-xs text-muted-foreground mb-2 font-medium">Standard category guide</p>
+                        <div className="grid gap-1">
+                          {STANDARD_WRITING_CATEGORIES.map(def => (
+                            <div key={def.name} className="text-xs flex gap-2">
+                              <span className="font-medium text-foreground w-32 shrink-0">{def.name}</span>
+                              <span className="text-muted-foreground">{def.purpose}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="pt-4 flex items-center justify-between border-t border-border/50">
                     <Button variant="ghost" onClick={() => setStep(1)}>← Back</Button>

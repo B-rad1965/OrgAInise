@@ -12,6 +12,19 @@ import {
 
 const router: IRouter = Router();
 
+const WRITING_CATEGORY_SCHEMA = `
+STANDARD WRITING CATEGORY DEFINITIONS (use when this project has these categories):
+  Story DNA [soft-canon]       — Thematic foundation: premise, tone, themes, emotional questions, what the story is about beneath the plot. NOT character appearance, scene summaries, or minor lore.
+  Character DNA [soft-canon]   — Internal/emotional core: wound, fear, desire, lie, truth, moral struggle, arc direction. NOT height, hair, clothing, or actions.
+  Character Bible [hard-canon] — External/visual continuity: age, appearance, clothing, voice, speech patterns, mannerisms, body language. NOT emotional arc or relationship history.
+  Relationship Maps [soft-canon]  — Emotional dynamics between characters: what each gives/needs, trust points, tension points, power imbalance, how the bond evolves. NOT solo biography or unrelated lore.
+  Story Arc Maps [soft-canon]  — Transformation paths: starting belief → internal need → breaking point → final choice → what is gained/lost. NOT static traits or world facts.
+  World Bible [hard-canon]     — Setting, cultures, history, magic systems, politics, geography, rules of the world. NOT individual emotional arcs or character visual details.
+  Canon Events [hard-canon]    — Confirmed events in established continuity. Things that definitively happened. NEVER speculation — "maybe/possibly/might" items belong in Open Questions.
+  Open Questions [speculative] — Unresolved ideas, undecided paths, creative branches still under consideration. NOT canon. Preserve ALL uncertainty language exactly as written.
+
+Canon strength: hard-canon = treat as established fact; soft-canon = established direction, open to evolution; speculative = NOT canon, never present as truth.`;
+
 function getOpenAIClient() {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -62,17 +75,19 @@ UNCERTAINTY PRESERVATION (critical):
 - Never convert speculation into confirmed fact. "Maybe Syr is the traitor" must stay as "Maybe Syr is the traitor" — not "Syr is the traitor".
 - Speculative items should go in "Working Theories" or "Open Questions" categories if those exist, and should use importanceLevel "useful-context" rather than "must-include".
 
-WHAT TO CAPTURE (any of these are worth saving):
-- Story DNA: Core themes, emotional engines, symbolic meanings, relationship dynamics, character wounds and desires, signature lines, story breakthroughs, tone notes.
-- Character DNA: A character's emotional core — what they fear, want, hide, how they speak, what drives their arc.
-- Relationship DNA: What makes a relationship work emotionally — tension, contrast, what each person gives the other, the dynamic.
-- Lore / Magic / Rules: Confirmed world rules, how systems work, hard constraints, established facts about the world.
-- Canon Events: Things that definitively happened — established plot points stated as fact.
-- Working Theories: Ideas being explored, directions being considered, authorial speculation. Preserve all uncertainty language.
-- Open Questions: Unresolved decisions, things that need to be figured out, explicit unknowns.
-- Writing Guidance: How the AI should help — style notes, tone, what to avoid, what to encourage.
+WHAT TO CAPTURE — classify each item into the most specific matching category:
+- Story DNA: Core premise, tone, themes, emotional questions, what the story is "about" at a deep level, philosophical conflicts, narrative promise.
+- Character DNA: A character's emotional core — wound, fear, desire, lie, arc direction, moral struggle. NOT physical description.
+- Character Bible: Physical/visual/behavioral continuity — appearance, clothing, voice, speech patterns, mannerisms, visual keywords. NOT emotional arc.
+- Relationship Maps: What makes a relationship work emotionally — what each person gives/needs, trust/tension, power imbalance, how the dynamic evolves.
+- Story Arc Maps: A character or storyline's transformation path — starting state, key tests, breaking point, final choice, what is gained/lost.
+- World Bible: Confirmed world rules, history, geography, cultures, magic/technology systems, political structures, rules of the world.
+- Canon Events: Things that definitively happened — confirmed plot points, backstory events, decisions already made. NEVER include speculation.
+- Open Questions: Unresolved decisions, things still to figure out, creative branches being considered. Preserve ALL uncertainty language exactly.
+- Writing Guidance: How the AI should help — style notes, tone instructions, what to avoid, what to encourage.
+- If the project does not use these specific categories, map to the closest available project category.${WRITING_CATEGORY_SCHEMA}
 
-Story DNA items deserve full, resonant phrasing — do not over-compress. Preserve emotional truth over brevity.` : "";
+Story DNA, Character DNA, and Relationship Maps items deserve full, resonant phrasing — do not over-compress. Preserve emotional truth over brevity.` : "";
 
   const systemPrompt = `You are an AI project memory assistant for OrgAInise. Your job is to analyze session notes and extract important information worth saving as project memory.
 
@@ -229,12 +244,18 @@ Each significant character gets their own subsection. Include:
 - **Narrative Function**: one sentence explaining why this character matters to the story — their role in the thematic argument, what they represent, what the story would lose without them
 Do NOT reduce a character to a list of actions they took. Preserve their psychological interiority. A character is not "the person who did X" — they are the person who fears Y, wants Z, and is changed by the story in this specific way.
 
-## Relationship DNA
+## Character Bible
+Each character with external continuity data gets their own subsection. Include: age, physical description, clothing/style, voice, speech patterns, mannerisms, body language, visual keywords. This section is for depiction consistency — not emotional arc.
+
+## Relationship Maps
 What makes key relationships work emotionally — the tension, contrast, chemistry, what each person gives the other that no one else can.
 For each relationship, include a **Narrative Function** note explaining why this dynamic is essential to the story.
 
-## Lore / Magic / Rules
-Confirmed world rules and constraints — how systems, magic, or technology work. Only include things established as definite fact.
+## Story Arc Maps
+Each character or storyline with a transformation path. Include: starting belief/state, the central internal need, key tests, the breaking point, the final choice, ending belief, what was gained and what was lost.
+
+## World Bible / Lore / Magic / Rules
+Confirmed world rules and constraints — how systems, magic, or technology work. Cultures, history, geography, political structures. Only include things established as definite fact.
 
 ## Canon Events
 Confirmed plot events — things that definitively happened, established as fact. Do NOT include anything speculative or uncertain here. For events that are narratively significant (turning points, reveals, character-defining moments), add a brief **Narrative Function** note explaining what the event means beyond what happened.
@@ -276,7 +297,21 @@ TYPE: ${projectType}
 PROJECT: ${projectName}
 TYPE: ${projectType}
 
-Then organize all the provided memory into the structured sections described above (Story DNA, Character DNA, Relationship DNA, Lore/Magic/Rules, Canon Events, Working Theories, Open Questions, Writing Guidance). Map the user's categories intelligently to these sections — e.g. "Characters" maps to Character DNA, "Plot Threads" maps to Canon Events (confirmed) and Working Theories (speculative), "Worldbuilding" maps to Lore/Magic/Rules, etc.`;
+Then organize all the provided memory into the structured sections described above. Map the user's categories intelligently to these sections:
+  • "Story DNA" → Story DNA
+  • "Character DNA" → Character DNA
+  • "Character Bible" → Character Bible
+  • "Characters" → Character DNA (emotional) or Character Bible (appearance/behavioral)
+  • "Relationship Maps" or "Relationship DNA" → Relationship Maps
+  • "Story Arc Maps" → Story Arc Maps
+  • "World Bible" → World Bible / Lore / Magic / Rules
+  • "Worldbuilding", "Lore / Magic / Rules", "Lore", "Magic" → World Bible / Lore / Magic / Rules
+  • "Canon Events", "Canon Notes" → Canon Events (confirmed facts only) or Working Theories (speculative)
+  • "Plot Threads" → Canon Events (confirmed) and Working Theories (speculative)
+  • "Open Questions" → Open Questions
+  • "Working Theories" → Working Theories
+  • "Writing Guidance", "Themes" → Writing Guidance or Story DNA
+  • Any other category → nearest matching section by content`;
 
   const userPrompt = `Generate a context block (~${targetWords} words) for this project:
 
@@ -521,6 +556,11 @@ MAGNITUDE:
 
 Rename requests are always MINOR magnitude unless the renamed entity is a central character.
 Changes to a character identity, magic system, central relationship, or core conflict are MAJOR magnitude.
+
+CATEGORY CANON STRENGTH — apply when evaluating impact severity:
+  hard-canon categories (Canon Events, Character Bible, World Bible): conflicts are high-severity — these items assert established facts, so a change that contradicts them is unambiguous and must be addressed.
+  soft-canon categories (Story DNA, Character DNA, Relationship Maps, Story Arc Maps): changes may affect thematic coherence, character motivation, or arc continuity — flag conflicts for review or archive.
+  speculative categories (Open Questions): changes rarely break anything — these entries are not canon and naturally evolve with the project. Only flag if the question is now entirely moot.
 
 ━━━ PHASE 2: EVALUATE EVERY ITEM ━━━
 

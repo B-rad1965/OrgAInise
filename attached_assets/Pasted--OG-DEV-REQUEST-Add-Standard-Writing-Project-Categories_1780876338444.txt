@@ -1,0 +1,417 @@
+# OG DEV REQUEST: Add Standard Writing Project Categories + Category Definitions
+
+## Goal
+
+Improve OG writing projects by adding a standard category framework for serious fiction/story development.
+
+Right now, writing projects can store story details, but the AI may not understand the difference between emotional character data, visual character data, relationship data, arc data, lore data, and unresolved questions unless those categories are explicitly defined.
+
+The goal is to make OG writing projects function more like a professional story bible.
+
+---
+
+# Add These As Standard Categories For All Writing Projects
+
+These should be available by default in writing/story/worldbuilding projects.
+
+## 1. Story DNA
+
+### Purpose
+
+Stores the thematic and creative foundation of the story.
+
+### Should Contain
+
+* Core premise
+* Genre
+* Tone
+* Central themes
+* Core emotional questions
+* Narrative promise
+* Overall story direction
+* Major philosophical conflicts
+* What the story is ultimately “about” beneath the plot
+
+### Should NOT Contain
+
+* Detailed character appearance
+* Full biographies
+* Scene-by-scene plot summaries
+* Minor lore details
+
+### AI Usage
+
+The AI should reference Story DNA when evaluating whether new ideas fit the project’s central identity, tone, and thematic direction.
+
+---
+
+## 2. Character DNA
+
+### Purpose
+
+Stores the internal/emotional foundation of a character.
+
+This category answers: “Who is this character beneath the surface?”
+
+### Should Contain
+
+* Core wound
+* Core fear
+* Core desire
+* Core lie
+* Core truth
+* Moral struggle
+* Emotional contradiction
+* Narrative function
+* Theme connection
+* Internal arc direction
+* What makes this character emotionally compelling
+
+### Should NOT Contain
+
+* Height
+* Hair color
+* Eye color
+* Clothing details
+* Detailed visual design
+* Full plot summary
+
+### AI Usage
+
+The AI should use Character DNA to preserve emotional continuity, character motivations, and thematic consistency.
+
+---
+
+## 3. Character Bible
+
+### Purpose
+
+Stores the external, visual, behavioral, and practical continuity of a character.
+
+This category answers: “What would a writer, artist, animator, actor, or game designer need to know to depict this character consistently?”
+
+### Should Contain
+
+* Age
+* Height
+* Build
+* Complexion
+* Hair
+* Eyes
+* Face shape
+* Distinguishing features
+* Clothing / outfit style
+* Weapons / tools / accessories
+* Voice
+* Speech patterns
+* Mannerisms
+* Habits
+* Body language
+* Movement style
+* Fighting style, if applicable
+* Visual keywords
+* How others perceive them physically or socially
+
+### Should NOT Contain
+
+* Core emotional arc
+* Full story themes
+* Entire relationship history
+* Deep lore unrelated to depiction
+
+### AI Usage
+
+The AI should use Character Bible entries when generating scenes, dialogue, artwork prompts, animation references, casting descriptions, character sheets, or visual continuity checks.
+
+---
+
+## 4. Relationship Maps
+
+### Purpose
+
+Stores the emotional and narrative relationship dynamics between characters.
+
+This category answers: “How do these characters affect each other?”
+
+### Should Contain
+
+For each major relationship:
+
+* Relationship type
+* Emotional foundation
+* What each character gives the other
+* What each character needs from the other
+* Trust points
+* Tension points
+* Conflict triggers
+* Power imbalance, if any
+* How the relationship changes over time
+* Narrative function of the relationship
+
+### Should NOT Contain
+
+* Individual character appearance
+* Full solo character biography
+* Unrelated world lore
+
+### AI Usage
+
+The AI should use Relationship Maps when writing scenes between characters, evaluating chemistry, checking emotional continuity, and tracking how bonds evolve over the story.
+
+---
+
+## 5. Story Arc Maps
+
+### Purpose
+
+Stores the transformation path of characters, relationships, factions, or major storylines.
+
+This category answers: “How does this person or storyline change from beginning to end?”
+
+### Should Contain
+
+* Starting belief
+* Starting emotional state
+* External goal
+* Internal need
+* Major tests
+* False solution
+* Midpoint shift
+* Breaking point
+* Moment of truth
+* Final choice
+* Ending belief
+* Cost of change
+* What is gained
+* What is lost
+
+### Should NOT Contain
+
+* Basic physical character description
+* Raw lore notes without arc relevance
+* Minor trivia
+
+### AI Usage
+
+The AI should use Story Arc Maps to preserve long-term development, avoid character regression, and ensure scenes serve the correct transformation path.
+
+---
+
+## 6. World Bible
+
+### Purpose
+
+Stores the setting, cultures, history, systems, geography, politics, and rules of the world.
+
+This category answers: “How does the world work?”
+
+### Should Contain
+
+* Regions
+* Kingdoms / nations
+* Cultures
+* Religions / belief systems
+* Politics
+* History
+* Geography
+* Magic systems
+* Technology systems
+* Social structures
+* Economy
+* Languages
+* Rules of the world
+* Important institutions
+* Major historical forces
+
+### Should NOT Contain
+
+* Individual emotional arcs unless tied directly to world history
+* Character visual details
+* Scene drafts
+
+### AI Usage
+
+The AI should use World Bible entries to maintain setting continuity, cultural consistency, political logic, and rule-based constraints.
+
+---
+
+## 7. Canon Events
+
+### Purpose
+
+Stores confirmed events that have happened in the story’s established continuity.
+
+This category answers: “What is officially true in the timeline?”
+
+### Should Contain
+
+* Major past events
+* Confirmed backstory events
+* Character decisions that already happened
+* Deaths
+* Betrayals
+* Wars
+* Discoveries
+* Established consequences
+* Timeline anchors
+* Events that future writing must not contradict
+
+### Should NOT Contain
+
+* Speculation
+* Possible future directions
+* Alternate timelines unless clearly labeled
+* Undecided ideas
+
+### AI Usage
+
+The AI should treat Canon Events as established facts unless the user explicitly declares a retcon, alternate timeline, or revision.
+
+---
+
+## 8. Open Questions
+
+### Purpose
+
+Stores unresolved ideas, undecided paths, and creative branches that are still under consideration.
+
+This category answers: “What have we not decided yet?”
+
+### Should Contain
+
+* Unresolved character roles
+* Possible future plot paths
+* Alternate endings
+* Name options
+* Undecided lore mechanics
+* Relationship possibilities
+* Questions needing future decisions
+* Branches the user wants to revisit later
+
+### Should NOT Contain
+
+* Final canon
+* Locked facts
+* Confirmed events
+* Completed character definitions
+
+### AI Usage
+
+The AI should treat Open Questions as flexible, not canon. It may brainstorm from these entries but should not present them as established truth.
+
+---
+
+# Optional / Project-Specific Category Support
+
+In addition to the standard writing categories above, OG should allow custom project-specific categories.
+
+Examples:
+
+## Fantasy / Epic Fantasy
+
+* Magic System
+* Artifact Registry
+* Kingdoms / Factions
+* Prophecies
+* Creature Bestiary
+
+## Science Fiction
+
+* Technology Bible
+* Planetary Systems
+* Alien Species
+* Scientific Rules
+* Starship / Equipment Registry
+
+## Mystery / Thriller
+
+* Case Files
+* Suspects
+* Clues
+* Red Herrings
+* Timeline of Crime
+
+## Game Projects
+
+* Gameplay Systems
+* Quest Design
+* Faction Trees
+* Character Classes
+* Item Registry
+
+## Vealoria-Specific Examples
+
+* Axiom System
+* Veil System
+* Astralim Archive
+* Shard Registry
+* Regional Powers
+
+---
+
+# Category Definition Requirement
+
+Each category should include a short definition/schema visible or accessible to the AI.
+
+The AI should understand:
+
+* What the category is for
+* What belongs in it
+* What does not belong in it
+* How strongly the AI should treat it as canon
+* When the category should be updated
+
+Category names alone are not enough.
+
+The category definition/schema is what allows future AI sessions to correctly classify, retrieve, and revise information.
+
+---
+
+# Memory / Revision Behavior
+
+When a user submits new information or a revision, the AI should classify it according to these category definitions.
+
+Example:
+
+If the user says:
+“Yuna is 17, slight build, dark hair, silver-flecked eyes, and tends to stand with one foot angled away like she is ready to run.”
+
+This belongs in:
+Character Bible → Yuna
+
+Not Character DNA.
+
+If the user says:
+“Yuna believes saving people is always worth the cost, but her arc is learning that intervention without wisdom can become control.”
+
+This belongs in:
+Character DNA → Yuna
+and possibly:
+Story Arc Maps → Yuna
+
+If the user says:
+“The Astralim were destroyed by accumulated Axiom consequences, not an ancient monster.”
+
+This belongs in:
+World Bible
+Canon Events
+and any project-specific lore category such as Axiom System or Astralim Archive.
+
+---
+
+# Desired Outcome
+
+Writing projects should become structured story bibles rather than loose collections of memories.
+
+The standard categories should help both users and AI preserve:
+
+* Character consistency
+* Emotional continuity
+* Visual continuity
+* Relationship development
+* Plot progression
+* World rules
+* Canon history
+* Open creative questions
+
+This should make OG better for novels, screenplays, games, animation projects, comics, and long-term worldbuilding.
