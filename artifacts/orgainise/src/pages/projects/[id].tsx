@@ -24,7 +24,7 @@ import {
   Trash2, Edit2, Copy, Download, BrainCircuit, Sparkles,
   Clock, CheckCircle2, XCircle, ArrowRight, RefreshCw, Database,
   Plus, GitMerge, X, Lock, Search, BookOpen,
-  Archive, RotateCcw, Wand2,
+  Archive, RotateCcw, Wand2, ChevronDown, ChevronUp, LayoutGrid,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -35,6 +35,7 @@ import { markContextGenerated, hasGeneratedContext, isChecklistDismissed, dismis
 import { getCategoryExample, getCategoryHelpTip } from "@/lib/category-examples";
 import { GettingStartedCard } from "@/components/getting-started-card";
 import { InactivityHint } from "@/components/inactivity-hint";
+import { STANDARD_WRITING_CATEGORIES, GENRE_PACKS, STANDARD_WRITING_CATEGORY_NAMES } from "@/lib/writing-categories";
 
 /* ─── Types ─────────────────────────────────────────────────────── */
 type RevisionMatch = {
@@ -46,6 +47,37 @@ type RevisionMatch = {
   reason: string;
   confidence: "low" | "medium" | "high";
 };
+
+/* ─── Category coverage helpers ─────────────────────────────────── */
+function getCategoryStatus(count: number): string {
+  if (count === 0) return "Empty";
+  if (count <= 2) return "Started";
+  if (count <= 5) return "In Progress";
+  if (count <= 10) return "Active";
+  if (count <= 20) return "Well Developed";
+  return "Complete";
+}
+
+function getStatusClasses(status: string): string {
+  switch (status) {
+    case "Empty":         return "text-rose-400 bg-rose-400/10 border-rose-400/30";
+    case "Started":       return "text-orange-400 bg-orange-400/10 border-orange-400/30";
+    case "In Progress":   return "text-amber-400 bg-amber-400/10 border-amber-400/30";
+    case "Active":        return "text-emerald-400 bg-emerald-400/10 border-emerald-400/30";
+    case "Well Developed":return "text-blue-400 bg-blue-400/10 border-blue-400/30";
+    case "Complete":      return "text-purple-400 bg-purple-400/10 border-purple-400/30";
+    default:              return "";
+  }
+}
+
+function getCanonClasses(strength: string): string {
+  switch (strength) {
+    case "hard-canon":  return "border-rose-400/40 text-rose-400";
+    case "soft-canon":  return "border-amber-400/40 text-amber-400";
+    case "speculative": return "border-blue-400/40 text-blue-400";
+    default:            return "";
+  }
+}
 
 /* ─── InlineEdit ─────────────────────────────────────────────────── */
 function InlineEdit({
@@ -154,6 +186,11 @@ export default function ProjectDetail() {
   const [revisionScannedCount, setRevisionScannedCount] = useState(0);
   const [revisionDecisions, setRevisionDecisions]   = useState<Record<string, "approve" | "reject">>({});
   const [editedRevisions, setEditedRevisions]       = useState<Record<string, string>>({});
+
+  /* ── categories tab ── */
+  const [categoryFilter, setCategoryFilter]         = useState<string | null>(null);
+  const [expandedCategoryDef, setExpandedCategoryDef] = useState<string | null>(null);
+  const [expandedPack, setExpandedPack]             = useState<string | null>(null);
 
   /* ── demo / first-success ── */
   const isDemo = project?.id === DEMO_PROJECT_ID;
@@ -572,12 +609,13 @@ export default function ProjectDetail() {
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 lg:w-[750px] mb-8 h-12">
-            <TabsTrigger value="memory"  className="text-xs sm:text-sm">Memory</TabsTrigger>
-            <TabsTrigger value="update"  className="text-xs sm:text-sm">Log Session</TabsTrigger>
-            <TabsTrigger value="context" className="text-xs sm:text-sm">Get Context</TabsTrigger>
-            <TabsTrigger value="search"  className="text-xs sm:text-sm">Search</TabsTrigger>
-            <TabsTrigger value="history" className="text-xs sm:text-sm">History</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-6 mb-8 h-12">
+            <TabsTrigger value="memory"     className="text-xs sm:text-sm">Memory</TabsTrigger>
+            <TabsTrigger value="categories" className="text-xs sm:text-sm">Categories</TabsTrigger>
+            <TabsTrigger value="update"     className="text-xs sm:text-sm">Log Session</TabsTrigger>
+            <TabsTrigger value="context"    className="text-xs sm:text-sm">Get Context</TabsTrigger>
+            <TabsTrigger value="search"     className="text-xs sm:text-sm">Search</TabsTrigger>
+            <TabsTrigger value="history"    className="text-xs sm:text-sm">History</TabsTrigger>
           </TabsList>
 
           {/* ── MEMORY TAB ─────────────────────────────────────── */}
@@ -682,8 +720,46 @@ export default function ProjectDetail() {
               </button>
             )}
 
+            {/* Category filter chips */}
+            {project.categories.length > 1 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <button
+                  onClick={() => setCategoryFilter(null)}
+                  className={cn(
+                    "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                    !categoryFilter
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/40",
+                  )}
+                >
+                  All
+                </button>
+                {project.categories.map(cat => {
+                  const cnt = (memoriesByCategory[cat] || []).filter(
+                    m => showArchived || m.importanceLevel !== "archive-reference",
+                  ).length;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setCategoryFilter(cat === categoryFilter ? null : cat)}
+                      className={cn(
+                        "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                        categoryFilter === cat
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/40",
+                      )}
+                    >
+                      {cat}{cnt > 0 && <span className="opacity-70 ml-1">({cnt})</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Category list */}
-            {Object.entries(memoriesByCategory).map(([category, items]) => {
+            {Object.entries(memoriesByCategory)
+              .filter(([category]) => !categoryFilter || category === categoryFilter)
+              .map(([category, items]) => {
               const displayItems = showArchived ? items : items.filter(m => m.importanceLevel !== "archive-reference");
               if (displayItems.length === 0) return null;
               const isUncategorized = category === "Uncategorized";
@@ -1192,7 +1268,290 @@ export default function ProjectDetail() {
             )}
           </TabsContent>
 
-          {/* ── HISTORY TAB ────────────────────────────────────── */}
+          {/* ── CATEGORIES TAB ─────────────────────────────────── */}
+          <TabsContent value="categories" className="space-y-8">
+
+            {/* Coverage map */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <LayoutGrid className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <h2 className="text-xl font-semibold">Coverage Map</h2>
+                  <p className="text-sm text-muted-foreground">Story bible health check — click any category to view its entries</p>
+                </div>
+              </div>
+              {project.categories.length === 0 ? (
+                <div className="text-center p-10 border border-dashed rounded-lg text-muted-foreground text-sm">
+                  No categories yet. Add some below.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {project.categories.map(cat => {
+                    const activeCount = (memoriesByCategory[cat] || []).filter(
+                      m => m.importanceLevel !== "archive-reference",
+                    ).length;
+                    const status = getCategoryStatus(activeCount);
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => { setActiveTab("memory"); setCategoryFilter(cat); }}
+                        className={cn(
+                          "text-left p-3 rounded-lg border text-sm transition-all hover:scale-[1.02]",
+                          getStatusClasses(status),
+                        )}
+                      >
+                        <div className="font-medium truncate">{cat}</div>
+                        <div className="text-xs mt-1 opacity-75">
+                          {status} · {activeCount} {activeCount === 1 ? "entry" : "entries"}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {/* Legend */}
+              <div className="flex flex-wrap gap-2 mt-3">
+                {["Empty","Started","In Progress","Active","Well Developed","Complete"].map(s => (
+                  <span key={s} className={cn("text-[10px] px-2 py-0.5 rounded-full border", getStatusClasses(s))}>
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Category table */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">All Categories</h3>
+              {project.categories.length === 0 ? (
+                <div className="text-center p-8 border border-dashed rounded-lg text-muted-foreground text-sm">
+                  No categories assigned to this project yet.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {project.categories.map(cat => {
+                    const def = STANDARD_WRITING_CATEGORIES.find(d => d.name === cat);
+                    const allItems = memoriesByCategory[cat] || [];
+                    const activeCount = allItems.filter(m => m.importanceLevel !== "archive-reference").length;
+                    const status = getCategoryStatus(activeCount);
+                    const isExpanded = expandedCategoryDef === cat;
+                    const isStandard = STANDARD_WRITING_CATEGORY_NAMES.includes(cat);
+                    const lastUpdatedMs = allItems.length > 0
+                      ? Math.max(...allItems.map(m => new Date(m.updatedAt).getTime()))
+                      : null;
+
+                    return (
+                      <Card key={cat} className="overflow-hidden">
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium">{cat}</span>
+                                <Badge variant="outline" className="text-[10px]">
+                                  {isStandard ? "Standard" : "Custom"}
+                                </Badge>
+                                {def && (
+                                  <Badge
+                                    variant="outline"
+                                    className={cn("text-[10px]", getCanonClasses(def.canonStrength))}
+                                  >
+                                    {def.canonStrength.replace("-", " ")}
+                                  </Badge>
+                                )}
+                                <span className={cn("text-[10px] px-2 py-0.5 rounded-full border font-medium", getStatusClasses(status))}>
+                                  {status}
+                                </span>
+                              </div>
+                              {def && (
+                                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{def.purpose}</p>
+                              )}
+                              <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                                <span>{activeCount} {activeCount === 1 ? "entry" : "entries"}</span>
+                                {allItems.length > activeCount && (
+                                  <span className="opacity-60">+{allItems.length - activeCount} archived</span>
+                                )}
+                                {lastUpdatedMs && (
+                                  <span>Updated {formatDistanceToNow(new Date(lastUpdatedMs), { addSuffix: true })}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs h-8"
+                                onClick={() => { setActiveTab("memory"); setCategoryFilter(cat); }}
+                              >
+                                View
+                              </Button>
+                              {def && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  title={isExpanded ? "Hide definition" : "Show definition"}
+                                  onClick={() => setExpandedCategoryDef(isExpanded ? null : cat)}
+                                >
+                                  {isExpanded
+                                    ? <ChevronUp className="h-4 w-4" />
+                                    : <ChevronDown className="h-4 w-4" />}
+                                </Button>
+                              )}
+                              {!isDemo && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                  title="Remove category"
+                                  onClick={() => openDeleteCat(cat)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Expanded definition */}
+                          {isExpanded && def && (
+                            <div className="mt-4 pt-4 border-t border-border/50 grid sm:grid-cols-3 gap-4 text-xs">
+                              <div>
+                                <p className="font-semibold text-muted-foreground uppercase tracking-wide mb-1">Belongs here</p>
+                                <p className="text-muted-foreground leading-relaxed">{def.contains}</p>
+                              </div>
+                              <div>
+                                <p className="font-semibold text-muted-foreground uppercase tracking-wide mb-1">Does not belong here</p>
+                                <p className="text-muted-foreground leading-relaxed">{def.excludes}</p>
+                              </div>
+                              <div>
+                                <p className="font-semibold text-muted-foreground uppercase tracking-wide mb-1">AI usage</p>
+                                <p className="text-muted-foreground leading-relaxed">{def.aiNote}</p>
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Add categories section */}
+            {!isDemo && (
+              <div className="space-y-6 pt-2 border-t border-border/30">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Add Categories</h3>
+
+                {/* Standard categories not yet added */}
+                {(() => {
+                  const missing = STANDARD_WRITING_CATEGORIES.filter(c => !project.categories.includes(c.name));
+                  if (missing.length === 0) return (
+                    <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                      All standard writing categories are active in this project.
+                    </div>
+                  );
+                  return (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Standard Writing Categories</p>
+                      <p className="text-xs text-muted-foreground">These are the 8 core categories designed for writing and worldbuilding projects.</p>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {missing.map(c => (
+                          <Button
+                            key={c.name}
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                            title={c.purpose}
+                            onClick={() => {
+                              saveField({ categories: [...project.categories, c.name] });
+                              toast({ title: "Category added", description: c.name });
+                            }}
+                          >
+                            <Plus className="h-3.5 w-3.5 mr-1" />{c.name}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Genre packs */}
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">Genre Packs</p>
+                  {Object.entries(GENRE_PACKS).map(([packName, packCats]) => {
+                    const newCats = packCats.filter(c => !project.categories.includes(c));
+                    const isPackExpanded = expandedPack === packName;
+                    return (
+                      <div key={packName} className="border rounded-lg p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="text-sm font-medium">{packName}</span>
+                            {newCats.length === 0 ? (
+                              <span className="text-xs text-muted-foreground ml-2">All categories already added</span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground ml-2">{newCats.length} new {newCats.length === 1 ? "category" : "categories"}</span>
+                            )}
+                          </div>
+                          <div className="flex gap-1.5 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => setExpandedPack(isPackExpanded ? null : packName)}
+                            >
+                              {isPackExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                            </Button>
+                            {newCats.length > 0 && (
+                              <Button
+                                size="sm"
+                                className="text-xs h-7"
+                                onClick={() => {
+                                  saveField({ categories: [...project.categories, ...newCats] });
+                                  toast({ title: `${packName} added`, description: `${newCats.length} new ${newCats.length === 1 ? "category" : "categories"} added.` });
+                                }}
+                              >
+                                Add Pack
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        {isPackExpanded && (
+                          <div className="flex flex-wrap gap-1.5 pt-1 border-t border-border/30">
+                            {packCats.map(c => (
+                              <Badge
+                                key={c}
+                                variant={project.categories.includes(c) ? "secondary" : "outline"}
+                                className="text-xs"
+                              >
+                                {project.categories.includes(c) && "✓ "}{c}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Custom category */}
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Custom Category</p>
+                  <div className="flex gap-2 max-w-sm">
+                    <Input
+                      placeholder="Category name…"
+                      value={newCategoryName}
+                      onChange={e => setNewCategoryName(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") commitAddCategory(); }}
+                    />
+                    <Button variant="outline" onClick={commitAddCategory} disabled={!newCategoryName.trim()}>
+                      <Plus className="h-4 w-4 mr-1" />Add
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ── HISTORY TAB ─────────────────────────────────────── */}
           <TabsContent value="history" className="space-y-6">
             <h2 className="text-xl font-semibold">Session History</h2>
             {history.length === 0 ? (

@@ -1,0 +1,296 @@
+# OG DEV REQUEST: Add Project Category Dashboard + Coverage Map
+
+## Goal
+
+Improve project visibility and usability by allowing users to clearly see, manage, and review the categories assigned to each project after the project has already been created.
+
+Currently, OG may show how many categories a project has, and there may be an option to add a category, but there is no clear place where the user can see which categories are currently active for that project.
+
+This creates friction because users have to remember which categories they already selected.
+
+The goal is to add a visible, editable **Category Dashboard** and **Coverage Map** inside each project.
+
+---
+
+# Problem
+
+After creating a project, users need to be able to answer:
+
+* Which categories are active in this project?
+* Which categories are standard categories?
+* Which categories are custom/project-specific?
+* Which categories are empty?
+* Which categories already contain entries?
+* Which categories are underdeveloped?
+* Can I add/remove/change categories after project creation?
+
+Right now this is not clear enough.
+
+---
+
+# Feature 1: Category Dashboard
+
+Add a dedicated **Category Dashboard** section inside each project.
+
+This should be accessible from the project page at any time.
+
+Suggested locations:
+
+* Project settings
+* Project overview
+* A dedicated “Categories” tab
+* Or a visible panel inside the project dashboard
+
+## Dashboard Should Display
+
+For each category assigned to the project:
+
+* Category name
+* Category type: Standard or Custom
+* Short category description
+* Number of saved entries/items
+* Canon strength, if applicable
+* Status
+* Last updated date
+* Actions
+
+## Example Table
+
+| Category          | Type     | Entries | Canon Strength | Status      | Actions     |
+| ----------------- | -------- | ------: | -------------- | ----------- | ----------- |
+| Story DNA         | Standard |       1 | Soft Canon     | Active      | View / Edit |
+| Character DNA     | Standard |       8 | Soft Canon     | Active      | View / Edit |
+| Character Bible   | Standard |       3 | Soft Canon     | In Progress | View / Edit |
+| Relationship Maps | Standard |       2 | Soft Canon     | In Progress | View / Edit |
+| Story Arc Maps    | Standard |       0 | Soft Canon     | Empty       | View / Edit |
+| World Bible       | Standard |      12 | Hard Canon     | Active      | View / Edit |
+| Canon Events      | Standard |      15 | Hard Canon     | Active      | View / Edit |
+| Open Questions    | Standard |       7 | Speculative    | Active      | View / Edit |
+| Axiom System      | Custom   |       4 | Hard Canon     | Active      | View / Edit |
+| Shard Registry    | Custom   |       0 | Hard Canon     | Empty       | View / Edit |
+
+---
+
+# Feature 2: Category Coverage Map
+
+Add a visual **Coverage Map** showing how developed each category is.
+
+This gives the user a quick “story bible health check.”
+
+## Suggested Statuses
+
+* Empty
+* Started
+* In Progress
+* Active
+* Well Developed
+* Complete
+
+## Suggested Visual Indicators
+
+Use simple colored badges or progress indicators:
+
+* Red / Empty
+* Orange / Started
+* Yellow / In Progress
+* Green / Active
+* Blue / Well Developed
+* Purple / Complete
+
+Do not make the system too rigid. These statuses can be based on entry count and/or user-set completion.
+
+## Example Coverage Map
+
+### Vealoria Coverage
+
+* Story DNA: Complete
+* Character DNA: In Progress
+* Character Bible: Started
+* Relationship Maps: Started
+* Story Arc Maps: Empty
+* World Bible: Active
+* Canon Events: Active
+* Open Questions: Active
+* Axiom System: Active
+* Veil System: Empty
+* Astralim Archive: Started
+* Shard Registry: Empty
+
+---
+
+# Feature 3: Editable Categories After Project Creation
+
+Users should be able to change project categories after the project is created.
+
+## User Should Be Able To
+
+* View all active categories
+* Add standard categories
+* Add custom categories
+* Remove empty categories
+* Rename custom categories
+* Edit custom category descriptions
+* View category schema/definition
+* Possibly archive categories instead of deleting them
+
+## Safety Rules
+
+Do not allow destructive deletion without confirmation.
+
+If a category contains entries, removing it should either:
+
+1. Ask user to reassign entries to another category.
+2. Archive the category.
+3. Prevent deletion until entries are moved.
+
+The system should avoid orphaning saved memories/items.
+
+---
+
+# Feature 4: Category Definitions / Schema Display
+
+Each category should show its definition/schema.
+
+This is important because the AI needs to understand what belongs in each category.
+
+Users should be able to click or expand a category to see:
+
+* Purpose
+* What belongs here
+* What does not belong here
+* Canon strength
+* AI usage guidance
+
+## Example
+
+### Character Bible
+
+Purpose:
+Stores external, visual, behavioral, and practical continuity for a character.
+
+Belongs here:
+
+* Age
+* Height
+* Build
+* Complexion
+* Hair
+* Eyes
+* Clothing
+* Voice
+* Mannerisms
+* Movement style
+* Visual keywords
+
+Does not belong here:
+
+* Core emotional wound
+* Main character arc
+* Full relationship history
+
+AI Usage:
+Use this category for visual continuity, artwork prompts, scene description, animation reference, and character depiction.
+
+---
+
+# Feature 5: Category Add / Genre Pack Integration
+
+Since writing projects now support standard writing categories and genre packs, the Category Dashboard should clearly show:
+
+* Which standard categories are active
+* Which genre pack categories are active
+* Which custom categories are active
+
+## Suggested Add Category Flow
+
+When user clicks “Add Category,” show:
+
+### Standard Categories
+
+* Story DNA
+* Character DNA
+* Character Bible
+* Relationship Maps
+* Story Arc Maps
+* World Bible
+* Canon Events
+* Open Questions
+
+### Genre Packs
+
+* Fantasy Pack
+* Sci-Fi Pack
+* Mystery Pack
+* Game Pack
+
+### Custom Category
+
+* Create your own
+
+Before adding, show preview of what the category/pack contains.
+
+Avoid duplicate categories.
+
+---
+
+# Feature 6: Context Generation Awareness
+
+When generating context for AI, OG should be aware of category coverage.
+
+For example, if a project lacks Character Bible entries, the generated context can optionally mention:
+
+“Character DNA exists for Yuna, Aurora, and Kaida, but Character Bible details are missing or incomplete.”
+
+This helps the user know what is still underdeveloped.
+
+---
+
+# Feature 7: Search / Filter By Category
+
+Inside the project, users should be able to filter memories/items by category.
+
+Examples:
+
+* Show only Character Bible entries
+* Show only Story Arc Maps
+* Show only Hard Canon
+* Show empty categories
+* Show recently updated categories
+
+This makes the story bible easier to maintain as it grows.
+
+---
+
+# Desired Outcome
+
+Projects should no longer behave like hidden memory piles.
+
+They should behave like visible, structured story bibles.
+
+Users should be able to open a project and immediately understand:
+
+* What categories exist
+* What is developed
+* What is missing
+* What is canon
+* What is speculative
+* What needs work next
+
+This feature will especially improve long-term writing, worldbuilding, fiction, game, animation, and lore-heavy projects.
+
+---
+
+# Acceptance Criteria
+
+The feature is successful when:
+
+1. A user can open any project and see exactly which categories are active.
+2. A user can distinguish standard categories from custom categories.
+3. A user can see entry counts per category.
+4. A user can see empty or underdeveloped categories.
+5. A user can add categories after project creation.
+6. A user can safely remove/archive categories.
+7. A user can view each category’s definition/schema.
+8. Context generation can reference category coverage when helpful.
+9. The system avoids duplicate categories.
+10. Existing memories/items are not lost or orphaned when categories change.

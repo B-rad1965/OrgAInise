@@ -313,6 +313,22 @@ Then organize all the provided memory into the structured sections described abo
   • "Writing Guidance", "Themes" → Writing Guidance or Story DNA
   • Any other category → nearest matching section by content`;
 
+  const emptyCategories = selectedCategories.filter(
+    cat => !filteredItems.some(item => item.category === cat),
+  );
+  const lowCategories = selectedCategories.filter(cat => {
+    const count = filteredItems.filter(item => item.category === cat).length;
+    return count > 0 && count <= 2;
+  });
+
+  const coverageNote = (isWriting && (emptyCategories.length > 0 || lowCategories.length > 0))
+    ? `\n\nCATEGORY COVERAGE NOTE — include a brief "Coverage Note" section at the very end of the context block:
+${emptyCategories.length > 0 ? `Empty (no entries): ${emptyCategories.join(", ")}` : ""}
+${lowCategories.length > 0 ? `Underdeveloped (1-2 entries): ${lowCategories.join(", ")}` : ""}
+One sentence per area. Example: "Character Bible details are missing — no visual or behavioral data exists yet."
+Keep it factual and brief. Do not include this section if all categories have sufficient content.`
+    : "";
+
   const userPrompt = `Generate a context block (~${targetWords} words) for this project:
 
 Project: "${projectName}"
@@ -321,7 +337,7 @@ Type: ${projectType}
 Memory:
 ${memoryText}
 
-${isWriting ? writingFormat : nonWritingFormat}`;
+${isWriting ? writingFormat : nonWritingFormat}${coverageNote}`;
 
   try {
     const completion = await openai.chat.completions.create({
