@@ -1,0 +1,89 @@
+Update OrgAInise standard project domains.
+
+Goal:
+Add the missing standard domains without breaking existing projects, templates, onboarding, context generation, sync, or saved data.
+
+Current standard domains include:
+- Coding / App Build
+- Writing / Worldbuilding
+- Business / Startup
+- Research / Learning
+- Trading / Investing
+- Personal / Life
+- Custom
+
+Please update the standard domain/type list to:
+
+1. Coding / App Build
+2. Writing / Worldbuilding
+3. Creative Projects
+4. Business / Startup
+5. Research / Learning
+6. Trading / Investing
+7. Health / Nutrition
+8. Home / Gardening
+9. Personal / Life
+10. Custom
+
+Requirements:
+
+- Add Creative Projects as a standard domain.
+- Add Health / Nutrition as a standard domain.
+- Add Home / Gardening as a standard domain.
+- Do not rename Writing / Worldbuilding.
+- Do not remove or alter existing domains.
+- Preserve all existing project data.
+- Existing projects should continue working exactly as before.
+- If project type/domain values are stored as strings, ensure old values remain valid.
+- Update project creation dropdowns, onboarding project type selection, demo/help copy, starter templates, and any domain-based category generation logic.
+- Do not make database schema changes unless absolutely necessary.
+- If no schema change is needed, do not create one.
+
+Starter category suggestions:
+
+Creative Projects:
+- Creative Vision
+- Ideas
+- Assets / References
+- Project DNA
+- Work Sessions
+- Open Questions
+- Next Steps
+
+Health / Nutrition:
+- Food Preferences
+- Diet Rules
+- Recipes
+- Meal Plans
+- Grocery Lists
+- Cooking Instructions
+- Goals & Progress
+- Successful Meals
+
+Home / Gardening:
+- Project Goals
+- Layout / Design
+- Plants / Materials
+- Care / Maintenance
+- Progress Notes
+- Shopping Lists
+- Lessons Learned
+- Open Questions
+
+Also update onboarding/help descriptions so users understand these domains.
+
+Creative Projects:
+For content, media, games, podcasts, art, music, YouTube, design, and other creative work.
+
+Health / Nutrition:
+For meal planning, recipes, grocery lists, food preferences, hydration, goals, and healthy eating systems.
+
+Home / Gardening:
+For home projects, landscaping, gardening, plant care, DIY builds, maintenance plans, and progress tracking.
+
+After implementation:
+- Run type checks.
+- Verify project creation works for all new domains.
+- Verify starter categories populate correctly.
+- Verify existing projects still load.
+- Summarize exactly what files changed.

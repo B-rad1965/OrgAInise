@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { BrainCircuit, BookOpen, Briefcase, Leaf, TrendingUp, GraduationCap, Layers, ArrowRight, X } from "lucide-react";
+import { BrainCircuit, BookOpen, Briefcase, Leaf, TrendingUp, GraduationCap, Layers, ArrowRight, X, Palette, Heart, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSyncedStorage } from "@/lib/synced-storage";
@@ -18,16 +18,22 @@ const ONBOARDING_TYPES = [
     categories: ["Characters", "Worldbuilding", "Plot", "Story DNA", "Open Questions", "Session History"],
   },
   {
+    id: "creative",
+    label: "Creative Projects",
+    icon: Palette,
+    categories: ["Creative Vision", "Ideas", "Assets / References", "Project DNA", "Work Sessions", "Open Questions", "Next Steps"],
+  },
+  {
     id: "business",
     label: "Business / Startup",
     icon: Briefcase,
     categories: ["Vision", "Customer Pain", "Features", "Business DNA", "Revenue Model", "Open Questions"],
   },
   {
-    id: "gardening",
-    label: "Gardening / DIY",
-    icon: Leaf,
-    categories: ["Garden Goals", "Layout / Design", "Plants", "Garden DNA", "Progress Notes", "Open Questions"],
+    id: "research",
+    label: "Research / Learning",
+    icon: GraduationCap,
+    categories: ["Key Concepts", "Sources", "Questions", "Research DNA", "Insights", "Next Steps"],
   },
   {
     id: "trading",
@@ -36,10 +42,16 @@ const ONBOARDING_TYPES = [
     categories: ["Watchlist", "Positions", "Strategy Rules", "Trading DNA", "Lessons Learned", "Market Thesis"],
   },
   {
-    id: "research",
-    label: "Research / Learning",
-    icon: GraduationCap,
-    categories: ["Key Concepts", "Sources", "Questions", "Research DNA", "Insights", "Next Steps"],
+    id: "health",
+    label: "Health / Nutrition",
+    icon: Heart,
+    categories: ["Food Preferences", "Diet Rules", "Recipes", "Meal Plans", "Grocery Lists", "Goals & Progress", "Successful Meals"],
+  },
+  {
+    id: "home",
+    label: "Home / Gardening",
+    icon: Home,
+    categories: ["Project Goals", "Layout / Design", "Plants / Materials", "Care / Maintenance", "Progress Notes", "Shopping Lists", "Open Questions"],
   },
   {
     id: "other",
@@ -147,7 +159,7 @@ export function OnboardingModal({ open, onClose }: OnboardingModalProps) {
               Build a living project brain.
             </p>
             <p className="text-muted-foreground text-center text-sm leading-relaxed mb-8">
-              Writing. Trading. Gardening. Research. Business. Anything that evolves over time.
+              Writing. Creative work. Health. Business. Gardening. Research. Trading. Anything that evolves over time.
               <br /><br />
               OrgAInise helps you preserve the important notes, decisions, discoveries, lessons,
               and project DNA that AI needs to understand what you're working on. Instead of

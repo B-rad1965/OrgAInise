@@ -172,6 +172,102 @@ const EXAMPLES: Record<string, CategoryExample> = {
     helpTip: "Discoveries that changed how you think. The AI can build on these rather than arrive at conclusions you've already reached. e.g. \"Bad financial decisions are usually emotional, not informational.\"",
   },
 
+  /* ── Creative Projects ──────────────────────────────────────────── */
+  "Creative Vision": {
+    whatBelongsHere: "The core purpose, aesthetic, and direction of the creative project.",
+    exampleText: "A dark-fantasy podcast about memory and identity. Tone: atmospheric, morally grey. Target: adult listeners who love slow-burn storytelling.",
+    exampleImportance: "must-include",
+    helpTip: "The core purpose and direction of your creative work. Keeps the AI aligned with your vision rather than generic suggestions. e.g. \"Dark-fantasy podcast, atmospheric tone, adult audience, slow-burn storytelling.\"",
+  },
+  "Assets / References": {
+    whatBelongsHere: "Reference materials, mood boards, inspirations, style guides, and linked assets.",
+    exampleText: "Visual reference: Arcane (color palette), Berserk (character weight). Sound references: Midnight Gospel, Within Temptation.",
+    exampleImportance: "useful-context",
+    helpTip: "Inspirations and reference materials. Helps the AI understand what you're aiming for without lengthy descriptions. e.g. \"Visual: Arcane palette, Berserk character weight. Audio: Midnight Gospel tone.\"",
+  },
+  "Work Sessions": {
+    whatBelongsHere: "Brief logs of what was created, recorded, or completed in each session.",
+    exampleText: "May 3: recorded episode 4 intro (3 min). Rewrote the ending monologue. Still need sound design for the flashback sequence.",
+    exampleImportance: "archive-reference",
+    helpTip: "Brief logs of what you did each session. Tracks momentum and helps the AI understand where you are in the process. e.g. \"May 3: recorded ep4 intro, rewrote ending monologue, need flashback sound design.\"",
+  },
+
+  /* ── Health / Nutrition ─────────────────────────────────────────── */
+  "Food Preferences": {
+    whatBelongsHere: "Foods you enjoy, dislike, or eat regularly — including textures and flavours.",
+    exampleText: "Love: roasted vegetables, creamy sauces, anything with garlic. Dislike: raw onion, very spicy food, overly sweet sauces.",
+    exampleImportance: "must-include",
+    helpTip: "What you like and dislike eating. Stops the AI from suggesting meals you won't enjoy. e.g. \"Love roasted veg and garlic. Dislike raw onion and very spicy food.\"",
+  },
+  "Diet Rules": {
+    whatBelongsHere: "Dietary restrictions, allergies, intolerances, and non-negotiable rules.",
+    exampleText: "Gluten intolerant (not coeliac — cross-contamination OK). No processed seed oils. Limiting refined sugar. Targeting ~140g protein per day.",
+    exampleImportance: "must-include",
+    helpTip: "Your dietary restrictions and hard rules. Ensures every suggestion stays within your actual constraints. e.g. \"Gluten intolerant, avoiding seed oils, targeting 140g protein/day.\"",
+  },
+  "Recipes": {
+    whatBelongsHere: "Recipes you've saved, modified, or want to try — with any personal tweaks.",
+    exampleText: "Lemon herb chicken (adapted): swap butter for ghee, add capers, roast at 200°C for 30 min. Works every time.",
+    exampleImportance: "useful-context",
+    helpTip: "Saved recipes and your personal modifications. Helps the AI build meal plans around what actually works for you. e.g. \"Lemon herb chicken: swap butter for ghee, add capers, 200°C 30 min.\"",
+  },
+  "Meal Plans": {
+    whatBelongsHere: "Weekly or daily meal plans — what you're eating and when.",
+    exampleText: "Week of May 5: Mon/Wed/Fri — intermittent fasting (16:8). Tue/Thu — higher carb days post-workout. Sat/Sun — flexible.",
+    exampleImportance: "useful-context",
+    helpTip: "Current or planned meal structure. Helps the AI generate grocery lists and recipe suggestions that fit your schedule. e.g. \"Mon/Wed/Fri IF 16:8, Tue/Thu higher carb post-workout.\"",
+  },
+  "Grocery Lists": {
+    whatBelongsHere: "Shopping lists, staple items, and regular purchases.",
+    exampleText: "Weekly staples: chicken thighs, eggs, Greek yogurt, sweet potatoes, spinach, olive oil, garlic. Top-up: frozen berries, nuts.",
+    exampleImportance: "useful-context",
+    helpTip: "Regular grocery staples and shopping notes. Lets the AI build meal suggestions around what you typically keep in stock. e.g. \"Staples: chicken thighs, eggs, sweet potato, spinach, olive oil.\"",
+  },
+  "Cooking Instructions": {
+    whatBelongsHere: "Techniques, methods, equipment notes, and skill-level constraints.",
+    exampleText: "No oven (rental — no grill pan either). Have: air fryer, stovetop, Instant Pot. Max active cook time: 20 minutes.",
+    exampleImportance: "must-include",
+    helpTip: "Your cooking setup and constraints. Stops the AI from suggesting recipes that need equipment or time you don't have. e.g. \"Air fryer + Instant Pot only, no oven, max 20 min active cook time.\"",
+  },
+  "Goals & Progress": {
+    whatBelongsHere: "Health and nutrition goals with measurable targets and current progress.",
+    exampleText: "Goal: lose 8kg by August. Current: down 2kg in 3 weeks. Approach: calorie deficit (~400 cal/day) + strength training 3x/week.",
+    exampleImportance: "must-include",
+    helpTip: "Your health goals and current progress. Shapes every AI suggestion around what you're actually trying to achieve. e.g. \"Lose 8kg by August — down 2kg, 400 cal deficit + strength 3x/week.\"",
+  },
+  "Successful Meals": {
+    whatBelongsHere: "Meals that worked well — recipes you'd repeat and why they succeeded.",
+    exampleText: "Sheet pan salmon + roasted asparagus: 25 min, high protein, almost no cleanup. On regular rotation.",
+    exampleImportance: "useful-context",
+    helpTip: "Meals that have worked well and why. Helps the AI recommend variations and keep suggestions practical. e.g. \"Sheet pan salmon + asparagus: 25 min, high protein, minimal cleanup — on regular rotation.\"",
+  },
+
+  /* ── Home / Gardening ───────────────────────────────────────────── */
+  "Project Goals": {
+    whatBelongsHere: "What you want to achieve with the home or garden project — outcomes and success criteria.",
+    exampleText: "2025: convert the back garden to a low-maintenance cottage style. Must stay under £1,200. Done by September.",
+    exampleImportance: "must-include",
+    helpTip: "What success looks like for this project. Grounds every AI suggestion in your actual goals. e.g. \"Low-maintenance cottage garden, under £1,200 budget, done by September.\"",
+  },
+  "Plants / Materials": {
+    whatBelongsHere: "Plants, soil, tools, building materials — what you have and what you need.",
+    exampleText: "Have: raised bed frame (2.4×1.2m), compost bin, basic hand tools. Need: topsoil, pea gravel for path, lavender starts (×6).",
+    exampleImportance: "must-include",
+    helpTip: "What you're working with and what you still need. Helps the AI give accurate, practical suggestions. e.g. \"Have: raised bed frame, compost bin. Need: topsoil, pea gravel, lavender starts.\"",
+  },
+  "Care / Maintenance": {
+    whatBelongsHere: "Watering schedules, feeding routines, seasonal tasks, and active care notes.",
+    exampleText: "Tomatoes: water every 2 days, feed fortnightly with tomato feed. Roses: deadhead weekly. Lawn: mow every 10 days April–Sept.",
+    exampleImportance: "must-include",
+    helpTip: "Active care schedules and maintenance notes. Helps the AI remind you what needs doing and when. e.g. \"Tomatoes: water 2x/week, feed fortnightly. Roses: deadhead weekly.\"",
+  },
+  "Shopping Lists": {
+    whatBelongsHere: "Items to buy — plants, tools, materials, and supplies.",
+    exampleText: "To buy: 40L topsoil (×2 bags), slow-release fertiliser pellets, slug pellets (organic), terracotta pots (30cm, ×3).",
+    exampleImportance: "useful-context",
+    helpTip: "What you need to buy next. Keeps the AI's suggestions practical and grounded in what's actually needed. e.g. \"Need: 40L topsoil ×2, slow-release fertiliser, slug pellets, 30cm terracotta pots ×3.\"",
+  },
+
   /* ── Shared / universal ─────────────────────────────────────────── */
   "Next Steps": {
     whatBelongsHere: "What you plan to do next — actions, tasks, or experiments.",
