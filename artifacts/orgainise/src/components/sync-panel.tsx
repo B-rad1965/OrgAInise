@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@workspace/replit-auth-web";
 import {
   fetchCloudCounts, forcePullFromCloud, forcePushToCloud,
   getLocalCounts, getLastSyncResult, type SyncResult,
 } from "@/lib/synced-storage";
+import { APP_VERSION, BUILD_LABEL, BUILD_ID } from "@/lib/build-info";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -53,6 +54,7 @@ export function SyncPanel() {
 
   const userId      = user?.id ?? "—";
   const userDisplay = user?.email ?? user?.firstName ?? "Unknown";
+  const loadedAt    = useMemo(() => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), []);
 
   const handlePush = async () => {
     setPushState("loading");
@@ -107,7 +109,7 @@ export function SyncPanel() {
 
       {open && (
         <div className="mt-4 space-y-4">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {/* Signed-in user */}
             <Card className="bg-card/50 border-border/60">
               <CardHeader className="pb-2 pt-4 px-4">
@@ -180,6 +182,26 @@ export function SyncPanel() {
                     </div>
                   </>
                 )}
+              </CardContent>
+            </Card>
+            {/* App Build */}
+            <Card className="bg-card/50 border-border/60">
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">App Build</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Version</span>
+                  <span className="font-semibold tabular-nums">{APP_VERSION}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Build ID</span>
+                  <span className="font-mono text-[11px] text-foreground/70">{BUILD_ID}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Loaded at</span>
+                  <span className="font-semibold tabular-nums">{loadedAt}</span>
+                </div>
               </CardContent>
             </Card>
           </div>

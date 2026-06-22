@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { SyncPanel } from "@/components/sync-panel";
+import { APP_VERSION, BUILD_LABEL, PUBLISHED_DATE } from "@/lib/build-info";
 
 type SortOption = "recently-updated" | "alphabetical" | "recently-created";
 
@@ -325,6 +326,16 @@ export default function Dashboard() {
           </>
         )}
         <SyncPanel />
+
+        {/* Version footer */}
+        <div className="mt-6 pt-4 border-t border-border/30 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 text-xs text-muted-foreground/50">
+          <span>
+            Version {APP_VERSION} &nbsp;·&nbsp; Build {BUILD_LABEL} &nbsp;·&nbsp; Published {PUBLISHED_DATE}
+          </span>
+          <span className="hidden sm:block">
+            If features look missing, try a hard refresh — <kbd className="px-1 py-0.5 rounded border border-border/40 font-mono text-[10px]">Ctrl+F5</kbd> on Windows or <kbd className="px-1 py-0.5 rounded border border-border/40 font-mono text-[10px]">⌘⇧R</kbd> on Mac
+          </span>
+        </div>
       </div>
 
       {/* Delete confirmation dialog */}
