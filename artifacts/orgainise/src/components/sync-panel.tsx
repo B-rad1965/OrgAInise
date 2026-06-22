@@ -50,11 +50,12 @@ export function SyncPanel() {
     void refreshCloudCounts();
   }, [open, isAuthenticated, refreshCloudCounts]);
 
+  const loadedAt = useMemo(() => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), []);
+
   if (isLoading || !isAuthenticated) return null;
 
   const userId      = user?.id ?? "—";
   const userDisplay = user?.email ?? user?.firstName ?? "Unknown";
-  const loadedAt    = useMemo(() => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), []);
 
   const handlePush = async () => {
     setPushState("loading");
