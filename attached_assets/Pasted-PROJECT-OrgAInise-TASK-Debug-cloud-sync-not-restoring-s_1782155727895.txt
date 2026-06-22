@@ -1,0 +1,76 @@
+PROJECT: OrgAInise
+TASK: Debug cloud sync not restoring saved projects on second device
+
+ISSUE:
+After implementing database pull/hydrate on sign-in, Windows PC still shows “No projects yet.”
+MacBook still has saved projects.
+Need to determine whether data is missing from PostgreSQL, wrong user id, endpoint not called, or frontend not hydrating state.
+
+PLEASE ADD TEMPORARY SYNC DIAGNOSTICS:
+
+1. On sign-in/app load, log visibly in console:
+- authenticated user id
+- authenticated email if available
+- localStorage project count
+- localStorage memory count
+- localStorage history count
+- whether /api/sync was called
+- /api/sync response counts:
+  - projects
+  - memories
+  - history
+- whether Storage.hydrate() ran
+- post-hydrate localStorage counts
+- whether UI refresh event fired
+
+2. Add a temporary button in Help or Dashboard:
+“Run Sync Diagnostic”
+
+When clicked, show:
+- signed in user id/email
+- local project count
+- database project count
+- database memory count
+- database history count
+- last sync direction:
+  - pushed
+  - pulled
+  - skipped
+  - failed
+- last sync error, if any
+
+3. Confirm MacBook has actually pushed data to PostgreSQL:
+Add/verify a force action:
+“Push Local Data to Cloud”
+This should take current localStorage data and write it to PostgreSQL for the signed-in user.
+
+4. Confirm PC can pull:
+Add/verify:
+“Pull Cloud Data to This Device”
+This should fetch /api/sync and hydrate localStorage + UI state.
+
+5. Fix likely race condition:
+Only run pull after auth user is fully loaded.
+Do not run sync check before user id exists.
+
+6. Fix UI hydration:
+After Storage.hydrate(), dispatch storage update event and force app/project list refresh.
+
+7. Important:
+Do NOT overwrite cloud data with empty localStorage.
+If localStorage has 0 real projects and cloud has >0 projects, PULL.
+If localStorage has >0 real projects and cloud has 0 projects, PUSH only after user confirms or during first cloud save.
+If both have data, do not blindly overwrite. Prefer latest updated_at or show diagnostic first.
+
+SUCCESS TEST:
+On MacBook:
+- Sign in.
+- Click Push Local Data to Cloud.
+- Confirm database project count > 0.
+
+On Windows PC:
+- Sign in with same account.
+- Click Pull Cloud Data to This Device or reload.
+- Projects appear.
+- Refresh page.
+- Projects remain.

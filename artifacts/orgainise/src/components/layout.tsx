@@ -127,7 +127,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
     };
 
     window.addEventListener("orgainise:synced", handler);
-    return () => window.removeEventListener("orgainise:synced", handler);
+    window.addEventListener("orgainise:pulled", handler);
+    return () => {
+      window.removeEventListener("orgainise:synced", handler);
+      window.removeEventListener("orgainise:pulled", handler);
+    };
   }, [toast]);
 
   const handleSaveNow = () => {

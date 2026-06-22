@@ -1,28 +1,51 @@
 /**
  * Dual-write layer — localStorage remains the source of truth at runtime.
  *
- * On sign-in the hook checks whether localStorage has any real (non-demo)
- * projects:
+ * On sign-in the hook checks whether localStorage has any real (non-demo) projects:
+ *   • Empty (new device)  → PULL from GET /api/sync → hydrate localStorage → UI re-renders.
+ *   • Has local data      → PUSH localStorage snapshot to POST /api/sync.
  *
- *   • Empty (new device)  → PULL from GET /api/sync, hydrate localStorage,
- *                           then the app renders normally from localStorage.
- *   • Has local data      → PUSH localStorage snapshot to POST /api/sync
- *                           (existing behaviour — keeps DB up to date).
+ * Every subsequent write dual-writes: localStorage first, then background API call.
  *
- * Every subsequent write dual-writes: localStorage first (never blocked),
- * then a background API call to PostgreSQL. API failures are swallowed
- * silently; they never break the localStorage operation.
+ * Race-condition fix: sync only fires once user.id is confirmed present, not just
+ * when the isAuthenticated flag flips (which can fire before the user object loads).
  *
- * Usage: replace `useStorage()` with `useSyncedStorage()` — identical API.
+ * Exported helpers allow the sync diagnostic panel to call force push/pull directly.
  */
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { useStorage, Storage, type Project, type MemoryItem, type SessionHistory } from "./storage";
 
-const SYNC_DONE_KEY  = "orgainise_db_synced";
-const DEMO_PROJECT_ID = "__demo__";
+export const DEMO_PROJECT_ID = "__demo__";
+const SYNC_DONE_KEY = "orgainise_db_synced";
 
-/* ─── Fire-and-forget API helper ─────────────────────────────────── */
+/* ─── Sync result tracking ───────────────────────────────────────── */
+
+export type SyncDirection = "pushed" | "pulled" | "skipped" | "failed" | null;
+
+export type SyncResult = {
+  direction: SyncDirection;
+  projects:  number;
+  memories:  number;
+  history:   number;
+  error?:    string;
+  userId?:   string;
+  timestamp: number;
+};
+
+let _lastSync: SyncResult = { direction: null, projects: 0, memories: 0, history: 0, timestamp: 0 };
+export function getLastSyncResult(): SyncResult { return { ..._lastSync }; }
+
+/* ─── Local count helper (excludes demo) ─────────────────────────── */
+
+export function getLocalCounts() {
+  const projects = Storage.getProjects().filter(p => p.id !== DEMO_PROJECT_ID);
+  const memories = Storage.getMemories().filter(m => m.projectId !== DEMO_PROJECT_ID);
+  const history  = Storage.getAllHistory().filter(h => h.projectId !== DEMO_PROJECT_ID);
+  return { projects: projects.length, memories: memories.length, history: history.length };
+}
+
+/* ─── Internal fire-and-forget helper ───────────────────────────── */
 
 async function apiFetch(method: string, path: string, body?: unknown): Promise<void> {
   try {
@@ -40,160 +63,198 @@ async function apiFetch(method: string, path: string, body?: unknown): Promise<v
   }
 }
 
-/** Push a full localStorage snapshot to the server. Returns true on success. */
-async function dbSyncAll(data: {
-  projects: Project[];
-  memories: MemoryItem[];
-  history: SessionHistory[];
-}): Promise<boolean> {
+/* ─── Cloud counts (read-only, no hydration) ─────────────────────── */
+
+export async function fetchCloudCounts(): Promise<{
+  ok: boolean; projects: number; memories: number; history: number; error?: string;
+}> {
+  try {
+    const res = await fetch("/api/sync", { credentials: "include" });
+    if (res.status === 401) return { ok: false, projects: 0, memories: 0, history: 0, error: "Not signed in" };
+    if (!res.ok)            return { ok: false, projects: 0, memories: 0, history: 0, error: `Server error (HTTP ${res.status})` };
+    const data = await res.json() as { projects: unknown[]; memories: unknown[]; history: unknown[] };
+    return { ok: true, projects: data.projects.length, memories: data.memories.length, history: data.history.length };
+  } catch (e) {
+    return { ok: false, projects: 0, memories: 0, history: 0, error: e instanceof Error ? e.message : "Network error" };
+  }
+}
+
+/* ─── Force push (exported) ──────────────────────────────────────── */
+
+export async function forcePushToCloud(userId?: string): Promise<{
+  ok: boolean; counts: { projects: number; memories: number; history: number }; error?: string;
+}> {
+  const projects = Storage.getProjects().filter(p => p.id !== DEMO_PROJECT_ID);
+  const memories = Storage.getMemories().filter(m => m.projectId !== DEMO_PROJECT_ID);
+  const history  = Storage.getAllHistory().filter(h => h.projectId !== DEMO_PROJECT_ID);
+
+  console.log(
+    `[OrgAInise] Force push → user=${userId ?? "?"} ` +
+    `local: ${projects.length} projects / ${memories.length} memories / ${history.length} history`,
+  );
+
   try {
     const res = await fetch("/api/sync", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ projects, memories, history }),
     });
     if (!res.ok) {
-      console.warn(`[OrgAInise] Initial sync failed → ${res.status} (localStorage preserved)`);
-      return false;
+      const error = `HTTP ${res.status}`;
+      console.warn(`[OrgAInise] Force push FAILED → ${error}`);
+      _lastSync = { direction: "failed", projects: 0, memories: 0, history: 0, error, userId, timestamp: Date.now() };
+      return { ok: false, counts: { projects: 0, memories: 0, history: 0 }, error };
     }
-    return true;
-  } catch {
-    console.warn("[OrgAInise] Initial sync failed — offline? (localStorage preserved)");
-    return false;
+    console.log(`[OrgAInise] Force push OK → ${projects.length} projects saved to cloud`);
+    _lastSync = { direction: "pushed", projects: projects.length, memories: memories.length, history: history.length, userId, timestamp: Date.now() };
+    return { ok: true, counts: { projects: projects.length, memories: memories.length, history: history.length } };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : "Network error";
+    console.warn("[OrgAInise] Force push FAILED →", error);
+    _lastSync = { direction: "failed", projects: 0, memories: 0, history: 0, error, userId, timestamp: Date.now() };
+    return { ok: false, counts: { projects: 0, memories: 0, history: 0 }, error };
   }
 }
 
-/**
- * Pull all data for the current user from the server and hydrate localStorage.
- * Used on new-device login when localStorage is empty.
- * Returns true if data was pulled and written.
- */
-async function dbPullAll(): Promise<boolean> {
+/* ─── Force pull (exported) ──────────────────────────────────────── */
+
+export async function forcePullFromCloud(userId?: string): Promise<{
+  ok: boolean; counts: { projects: number; memories: number; history: number }; error?: string;
+}> {
+  console.log(`[OrgAInise] Force pull → user=${userId ?? "?"} — calling GET /api/sync…`);
   try {
     const res = await fetch("/api/sync", { credentials: "include" });
+    if (res.status === 401) {
+      const error = "Not signed in";
+      _lastSync = { direction: "failed", projects: 0, memories: 0, history: 0, error, userId, timestamp: Date.now() };
+      return { ok: false, counts: { projects: 0, memories: 0, history: 0 }, error };
+    }
     if (!res.ok) {
-      console.warn(`[OrgAInise] DB pull failed → ${res.status}`);
-      return false;
+      const error = `Server error (HTTP ${res.status})`;
+      _lastSync = { direction: "failed", projects: 0, memories: 0, history: 0, error, userId, timestamp: Date.now() };
+      return { ok: false, counts: { projects: 0, memories: 0, history: 0 }, error };
     }
-    const data = await res.json() as {
-      projects: Project[];
-      memories: MemoryItem[];
-      history:  SessionHistory[];
-    };
-    const total = data.projects.length + data.memories.length + data.history.length;
-    if (total === 0) {
-      console.log("[OrgAInise] DB pull: server has no data yet — nothing to restore");
-      return false;
-    }
+
+    const data = await res.json() as { projects: Project[]; memories: MemoryItem[]; history: SessionHistory[] };
+    const { projects, memories, history } = data;
+
     console.log(
-      `[OrgAInise] DB pull: restoring ${data.projects.length} projects, ` +
-      `${data.memories.length} memories, ${data.history.length} history entries`,
+      `[OrgAInise] Force pull received → ${projects.length} projects / ${memories.length} memories / ${history.length} history`,
     );
-    Storage.hydrate(data);
-    return true;
-  } catch {
-    console.warn("[OrgAInise] DB pull failed — offline?");
-    return false;
+
+    if (projects.length === 0 && memories.length === 0 && history.length === 0) {
+      console.log("[OrgAInise] Force pull — cloud is empty, nothing to restore");
+      _lastSync = { direction: "skipped", projects: 0, memories: 0, history: 0, userId, timestamp: Date.now() };
+      return { ok: true, counts: { projects: 0, memories: 0, history: 0 } };
+    }
+
+    console.log(`[OrgAInise] Hydrating localStorage with ${projects.length} projects…`);
+    Storage.hydrate({ projects, memories, history });
+
+    _lastSync = { direction: "pulled", projects: projects.length, memories: memories.length, history: history.length, userId, timestamp: Date.now() };
+
+    console.log("[OrgAInise] Hydration complete — dispatching storage-update + orgainise:pulled");
+    window.dispatchEvent(new CustomEvent("orgainise:pulled", {
+      detail: { projects: projects.length, memories: memories.length, history: history.length },
+    }));
+
+    return { ok: true, counts: { projects: projects.length, memories: memories.length, history: history.length } };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : "Network error";
+    console.warn("[OrgAInise] Force pull FAILED →", error);
+    _lastSync = { direction: "failed", projects: 0, memories: 0, history: 0, error, userId, timestamp: Date.now() };
+    return { ok: false, counts: { projects: 0, memories: 0, history: 0 }, error };
   }
 }
 
-function dbSaveProject(p: Project)        { return apiFetch("POST",   "/projects",                      p); }
-function dbDeleteProject(id: string)      { return apiFetch("DELETE", `/projects/${id}`);                   }
-function dbSaveMemory(m: MemoryItem)      { return apiFetch("PUT",    `/memories/${m.id}`,             m); }
-function dbDeleteMemory(id: string)       { return apiFetch("DELETE", `/memories/${id}`);                   }
-function dbSaveHistory(h: SessionHistory) { return apiFetch("POST",   `/projects/${h.projectId}/history`, h); }
+/* ─── useSyncedStorage ───────────────────────────────────────────── */
 
-/* ─── useSyncedStorage ────────────────────────────────────────────── */
-
-/**
- * Drop-in replacement for `useStorage()`.
- * Returns the same `{ stamp, Storage }` shape, but write methods
- * dual-write to PostgreSQL in the background when the user is signed in.
- * Reads always come from localStorage. Failures are silent.
- */
 export function useSyncedStorage() {
-  const base                = useStorage();
-  const { isAuthenticated } = useAuth();
+  const base            = useStorage();
+  const { user, isAuthenticated } = useAuth();
+
+  // useRef prevents double-firing even if the effect dependency changes twice quickly
+  const syncFiredRef = useRef(false);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
-    if (sessionStorage.getItem(SYNC_DONE_KEY) === "1") return;
+    // Race-condition fix: wait until user.id is confirmed present, not just isAuthenticated
+    if (!isAuthenticated || !user?.id) return;
+    if (syncFiredRef.current) return;
+    syncFiredRef.current = true;
 
-    // Mark immediately — prevents concurrent renders from double-firing
-    sessionStorage.setItem(SYNC_DONE_KEY, "1");
+    const userId    = user.id;
+    const userLabel = `user=${userId}${user.email ? ` <${user.email}>` : ""}`;
+    const local     = getLocalCounts();
 
-    // Count real (non-demo) local data to decide push vs pull
-    const localProjects = Storage.getProjects().filter(p => p.id !== DEMO_PROJECT_ID);
-    const localMemories = Storage.getMemories().filter(m => m.projectId !== DEMO_PROJECT_ID);
-    const localHistory  = Storage.getAllHistory().filter(h => h.projectId !== DEMO_PROJECT_ID);
-    const localTotal    = localProjects.length + localMemories.length + localHistory.length;
+    console.log(
+      `[OrgAInise] ── Sign-in detected (${userLabel}) ──`,
+      `\n  localStorage: ${local.projects} projects / ${local.memories} memories / ${local.history} history`,
+    );
 
-    if (localTotal === 0) {
-      // ── New device: pull cloud data into localStorage ──────────────
-      console.log("[OrgAInise] New device detected — pulling projects from server…");
-      void dbPullAll().then((pulled) => {
-        if (!pulled) return;
-        window.dispatchEvent(
-          new CustomEvent("orgainise:pulled", {
-            detail: { message: "Projects restored from your account" },
-          }),
-        );
+    if (local.projects === 0 && local.memories === 0 && local.history === 0) {
+      // ── New device or cleared storage: pull from cloud ────────────
+      console.log("[OrgAInise] Local storage empty → PULLING from cloud…");
+      void forcePullFromCloud(userId).then((result) => {
+        if (!result.ok) {
+          console.warn(`[OrgAInise] Auto-pull failed: ${result.error}`);
+        } else if (result.counts.projects === 0) {
+          console.log("[OrgAInise] Auto-pull: cloud is also empty — first-time user on this account");
+        } else {
+          console.log(`[OrgAInise] Auto-pull complete → ${result.counts.projects} projects restored`);
+          sessionStorage.setItem(SYNC_DONE_KEY, "1");
+        }
       });
     } else {
-      // ── Known device: push localStorage snapshot to keep DB in sync ─
-      console.log(
-        `[OrgAInise] Login sync: pushing ${localProjects.length} projects, ` +
-        `${localMemories.length} memories, ${localHistory.length} history entries to DB`,
-      );
-      void dbSyncAll({ projects: localProjects, memories: localMemories, history: localHistory }).then((ok) => {
-        if (!ok) return;
-        window.dispatchEvent(
-          new CustomEvent("orgainise:synced", {
-            detail: {
-              projects: localProjects.length,
-              memories: localMemories.length,
-              history:  localHistory.length,
-            },
-          }),
-        );
+      // ── Existing device: push local snapshot to keep cloud in sync ─
+      console.log(`[OrgAInise] Local data found → PUSHING ${local.projects} projects to cloud…`);
+      void forcePushToCloud(userId).then((result) => {
+        if (!result.ok) {
+          console.warn(`[OrgAInise] Auto-push failed: ${result.error}`);
+          return;
+        }
+        console.log(`[OrgAInise] Auto-push complete → ${result.counts.projects} projects synced`);
+        sessionStorage.setItem(SYNC_DONE_KEY, "1");
+        window.dispatchEvent(new CustomEvent("orgainise:synced", {
+          detail: { projects: result.counts.projects, memories: result.counts.memories, history: result.counts.history },
+        }));
       });
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.id]);
 
-  /* Synced write methods — localStorage first, DB call in background */
+  /* Synced write methods — localStorage first, background API call second */
   const syncedStorage = {
     ...Storage,
 
     saveProject(project: Project) {
       Storage.saveProject(project);
-      if (isAuthenticated) void dbSaveProject(project);
+      if (isAuthenticated) void apiFetch("POST", "/projects", project);
     },
 
     deleteProject(id: string) {
       Storage.deleteProject(id);
-      if (isAuthenticated) void dbDeleteProject(id);
+      if (isAuthenticated) void apiFetch("DELETE", `/projects/${id}`);
     },
 
     duplicateProject(id: string): Project | null {
       const copy = Storage.duplicateProject(id);
-      if (copy && isAuthenticated) void dbSaveProject(copy);
+      if (copy && isAuthenticated) void apiFetch("POST", "/projects", copy);
       return copy;
     },
 
     saveMemory(memory: MemoryItem) {
       Storage.saveMemory(memory);
-      if (isAuthenticated) void dbSaveMemory(memory);
+      if (isAuthenticated) void apiFetch("PUT", `/memories/${memory.id}`, memory);
     },
 
     deleteMemory(id: string) {
       Storage.deleteMemory(id);
-      if (isAuthenticated) void dbDeleteMemory(id);
+      if (isAuthenticated) void apiFetch("DELETE", `/memories/${id}`);
     },
 
     saveHistory(history: SessionHistory) {
       Storage.saveHistory(history);
-      if (isAuthenticated) void dbSaveHistory(history);
+      if (isAuthenticated) void apiFetch("POST", `/projects/${history.projectId}/history`, history);
     },
   };
 

@@ -34,6 +34,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { SyncPanel } from "@/components/sync-panel";
 
 type SortOption = "recently-updated" | "alphabetical" | "recently-created";
 
@@ -323,6 +324,7 @@ export default function Dashboard() {
             </AnimatePresence>
           </>
         )}
+        <SyncPanel />
       </div>
 
       {/* Delete confirmation dialog */}
