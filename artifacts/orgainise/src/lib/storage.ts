@@ -241,6 +241,22 @@ export const Storage = {
     all = all.filter(h => h.projectId !== history.projectId).concat(capped);
     writeData(STORAGE_KEYS.HISTORY, all);
   },
+
+  /**
+   * Batch-write all three collections to localStorage in one shot,
+   * then dispatch a single storage-update so the UI re-renders once.
+   * Used by the new-device pull flow in synced-storage.ts.
+   */
+  hydrate: (data: { projects: Project[]; memories: MemoryItem[]; history: SessionHistory[] }): void => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(data.projects));
+      localStorage.setItem(STORAGE_KEYS.MEMORIES, JSON.stringify(data.memories));
+      localStorage.setItem(STORAGE_KEYS.HISTORY,  JSON.stringify(data.history));
+    } catch (e) {
+      console.error('[OrgAInise] hydrate failed:', e instanceof Error ? e.message : e);
+    }
+    window.dispatchEvent(new Event('storage-update'));
+  },
 };
 
 /* ─── useStorage hook ────────────────────────────────────────────── */

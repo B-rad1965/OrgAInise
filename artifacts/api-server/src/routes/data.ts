@@ -236,6 +236,29 @@ router.post(
 
 /* ─── Bulk sync ───────────────────────────────────────────────────── */
 
+/** Pull all data for the authenticated user in one request (used on new-device login). */
+router.get("/sync", async (req: Request, res: Response): Promise<void> => {
+  if (!req.isAuthenticated()) { res.status(401).json({ error: "Authentication required" }); return; }
+
+  const [projects, memories, historyRows] = await Promise.all([
+    db.select().from(projectsTable)
+      .where(eq(projectsTable.userId, req.user.id))
+      .orderBy(desc(projectsTable.updatedAt)),
+    db.select().from(memoriesTable)
+      .where(eq(memoriesTable.userId, req.user.id))
+      .orderBy(asc(memoriesTable.createdAt)),
+    db.select().from(sessionHistoryTable)
+      .where(eq(sessionHistoryTable.userId, req.user.id))
+      .orderBy(desc(sessionHistoryTable.createdAt)),
+  ]);
+
+  res.json({
+    projects: projects.map(projectToDto),
+    memories: memories.map(memoryToDto),
+    history:  historyRows.map(historyToDto),
+  });
+});
+
 router.post("/sync", async (req: Request, res: Response): Promise<void> => {
   if (!req.isAuthenticated()) { res.status(401).json({ error: "Authentication required" }); return; }
   const parsed = SyncDataBody.safeParse(req.body);

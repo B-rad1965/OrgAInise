@@ -1,8 +1,17 @@
 /**
- * Dual-write layer — localStorage remains the source of truth.
- * When the user is authenticated, every write also fires a background
- * API call to persist the data to PostgreSQL. API failures are swallowed
- * silently; they never block or break the localStorage operation.
+ * Dual-write layer — localStorage remains the source of truth at runtime.
+ *
+ * On sign-in the hook checks whether localStorage has any real (non-demo)
+ * projects:
+ *
+ *   • Empty (new device)  → PULL from GET /api/sync, hydrate localStorage,
+ *                           then the app renders normally from localStorage.
+ *   • Has local data      → PUSH localStorage snapshot to POST /api/sync
+ *                           (existing behaviour — keeps DB up to date).
+ *
+ * Every subsequent write dual-writes: localStorage first (never blocked),
+ * then a background API call to PostgreSQL. API failures are swallowed
+ * silently; they never break the localStorage operation.
  *
  * Usage: replace `useStorage()` with `useSyncedStorage()` — identical API.
  */
@@ -10,7 +19,8 @@ import { useEffect } from "react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { useStorage, Storage, type Project, type MemoryItem, type SessionHistory } from "./storage";
 
-const SYNC_DONE_KEY = "orgainise_db_synced";
+const SYNC_DONE_KEY  = "orgainise_db_synced";
+const DEMO_PROJECT_ID = "__demo__";
 
 /* ─── Fire-and-forget API helper ─────────────────────────────────── */
 
@@ -30,7 +40,7 @@ async function apiFetch(method: string, path: string, body?: unknown): Promise<v
   }
 }
 
-/** Returns true only when the server accepted the sync (2xx). */
+/** Push a full localStorage snapshot to the server. Returns true on success. */
 async function dbSyncAll(data: {
   projects: Project[];
   memories: MemoryItem[];
@@ -54,6 +64,40 @@ async function dbSyncAll(data: {
   }
 }
 
+/**
+ * Pull all data for the current user from the server and hydrate localStorage.
+ * Used on new-device login when localStorage is empty.
+ * Returns true if data was pulled and written.
+ */
+async function dbPullAll(): Promise<boolean> {
+  try {
+    const res = await fetch("/api/sync", { credentials: "include" });
+    if (!res.ok) {
+      console.warn(`[OrgAInise] DB pull failed → ${res.status}`);
+      return false;
+    }
+    const data = await res.json() as {
+      projects: Project[];
+      memories: MemoryItem[];
+      history:  SessionHistory[];
+    };
+    const total = data.projects.length + data.memories.length + data.history.length;
+    if (total === 0) {
+      console.log("[OrgAInise] DB pull: server has no data yet — nothing to restore");
+      return false;
+    }
+    console.log(
+      `[OrgAInise] DB pull: restoring ${data.projects.length} projects, ` +
+      `${data.memories.length} memories, ${data.history.length} history entries`,
+    );
+    Storage.hydrate(data);
+    return true;
+  } catch {
+    console.warn("[OrgAInise] DB pull failed — offline?");
+    return false;
+  }
+}
+
 function dbSaveProject(p: Project)        { return apiFetch("POST",   "/projects",                      p); }
 function dbDeleteProject(id: string)      { return apiFetch("DELETE", `/projects/${id}`);                   }
 function dbSaveMemory(m: MemoryItem)      { return apiFetch("PUT",    `/memories/${m.id}`,             m); }
@@ -69,10 +113,9 @@ function dbSaveHistory(h: SessionHistory) { return apiFetch("POST",   `/projects
  * Reads always come from localStorage. Failures are silent.
  */
 export function useSyncedStorage() {
-  const base            = useStorage();
+  const base                = useStorage();
   const { isAuthenticated } = useAuth();
 
-  /* On first sign-in this browser session: push localStorage snapshot → DB */
   useEffect(() => {
     if (!isAuthenticated) return;
     if (sessionStorage.getItem(SYNC_DONE_KEY) === "1") return;
@@ -80,27 +123,42 @@ export function useSyncedStorage() {
     // Mark immediately — prevents concurrent renders from double-firing
     sessionStorage.setItem(SYNC_DONE_KEY, "1");
 
-    const projects = Storage.getProjects();
-    const memories = Storage.getMemories();
-    const history  = Storage.getAllHistory();
-    const total    = projects.length + memories.length + history.length;
+    // Count real (non-demo) local data to decide push vs pull
+    const localProjects = Storage.getProjects().filter(p => p.id !== DEMO_PROJECT_ID);
+    const localMemories = Storage.getMemories().filter(m => m.projectId !== DEMO_PROJECT_ID);
+    const localHistory  = Storage.getAllHistory().filter(h => h.projectId !== DEMO_PROJECT_ID);
+    const localTotal    = localProjects.length + localMemories.length + localHistory.length;
 
-    if (total === 0) return; // nothing to sync — skip silently
-
-    console.log(
-      `[OrgAInise] Login sync: pushing ${projects.length} projects, ` +
-      `${memories.length} memories, ${history.length} history entries to DB`,
-    );
-
-    void dbSyncAll({ projects, memories, history }).then((ok) => {
-      if (!ok) return;
-      // Notify the Layout (and any other listeners) so they can show a confirmation
-      window.dispatchEvent(
-        new CustomEvent("orgainise:synced", {
-          detail: { projects: projects.length, memories: memories.length, history: history.length },
-        }),
+    if (localTotal === 0) {
+      // ── New device: pull cloud data into localStorage ──────────────
+      console.log("[OrgAInise] New device detected — pulling projects from server…");
+      void dbPullAll().then((pulled) => {
+        if (!pulled) return;
+        window.dispatchEvent(
+          new CustomEvent("orgainise:pulled", {
+            detail: { message: "Projects restored from your account" },
+          }),
+        );
+      });
+    } else {
+      // ── Known device: push localStorage snapshot to keep DB in sync ─
+      console.log(
+        `[OrgAInise] Login sync: pushing ${localProjects.length} projects, ` +
+        `${localMemories.length} memories, ${localHistory.length} history entries to DB`,
       );
-    });
+      void dbSyncAll({ projects: localProjects, memories: localMemories, history: localHistory }).then((ok) => {
+        if (!ok) return;
+        window.dispatchEvent(
+          new CustomEvent("orgainise:synced", {
+            detail: {
+              projects: localProjects.length,
+              memories: localMemories.length,
+              history:  localHistory.length,
+            },
+          }),
+        );
+      });
+    }
   }, [isAuthenticated]);
 
   /* Synced write methods — localStorage first, DB call in background */
