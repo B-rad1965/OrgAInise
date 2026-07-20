@@ -85,8 +85,13 @@ export function SyncPanel() {
       setPullState("success");
       if (result.counts.projects === 0) {
         setActionMsg("Cloud has no data yet — nothing was pulled.");
+      } else if ((result.preservedLocal ?? 0) > 0) {
+        setActionMsg(
+          `✓ Cloud data merged safely. ${result.preservedLocal} newer or local-only record(s) were preserved and still need backup.`,
+        );
+        setTimeout(() => window.location.reload(), 1200);
       } else {
-        setActionMsg(`✓ Pulled ${result.counts.projects} project(s) — page will refresh in 1 second.`);
+        setActionMsg(`✓ Merged ${result.counts.projects} cloud project(s) safely — page will refresh in 1 second.`);
         setTimeout(() => window.location.reload(), 1200);
       }
     } else {
@@ -292,9 +297,8 @@ export function SyncPanel() {
           </div>
 
           <p className="text-xs text-muted-foreground/60">
-            Push sends your local projects to the database. Pull restores cloud projects to this browser and reloads the page.
-            Automatic bulk push is paused when this device already has data because the cloud may contain newer changes.
-            Manual pull replaces this device's local data; export a backup first if you are unsure.
+            Push sends local records only when they are not older than their cloud copies. Pull safely merges both copies,
+            keeps the newer version of each record, and preserves local-only data. Conflicts stop before changing this device.
           </p>
         </div>
       )}

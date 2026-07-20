@@ -410,15 +410,35 @@ export const Storage = {
    * then dispatch a single storage-update so the UI re-renders once.
    * Used by the new-device pull flow in synced-storage.ts.
    */
-  hydrate: (data: { projects: Project[]; memories: MemoryItem[]; history: SessionHistory[] }): void => {
+  hydrate: (data: { projects: Project[]; memories: MemoryItem[]; history: SessionHistory[] }): { ok: boolean; error?: string } => {
+    const keys = [STORAGE_KEYS.PROJECTS, STORAGE_KEYS.MEMORIES, STORAGE_KEYS.HISTORY];
+    const previous = new Map<string, string | null>();
     try {
-      localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(data.projects));
-      localStorage.setItem(STORAGE_KEYS.MEMORIES, JSON.stringify(data.memories));
-      localStorage.setItem(STORAGE_KEYS.HISTORY,  JSON.stringify(data.history));
+      for (const key of keys) previous.set(key, localStorage.getItem(key));
+      const hydrated = new Map<string, string>([
+        [STORAGE_KEYS.PROJECTS, JSON.stringify(data.projects)],
+        [STORAGE_KEYS.MEMORIES, JSON.stringify(data.memories)],
+        [STORAGE_KEYS.HISTORY, JSON.stringify(data.history)],
+      ]);
+      for (const [key, serialized] of hydrated) localStorage.setItem(key, serialized);
+      if ([...hydrated].some(([key, serialized]) => localStorage.getItem(key) !== serialized)) {
+        throw new Error('Browser storage failed the cloud restore read-back check.');
+      }
     } catch (e) {
-      console.error('[OrgAInise] hydrate failed:', e instanceof Error ? e.message : e);
+      try {
+        for (const [key, oldValue] of previous) {
+          if (oldValue === null) localStorage.removeItem(key);
+          else localStorage.setItem(key, oldValue);
+        }
+      } catch {
+        return { ok: false, error: 'Cloud restore failed and browser storage could not be rolled back completely.' };
+      }
+      const error = e instanceof Error ? e.message : 'Could not restore cloud data to browser storage.';
+      console.error('[OrgAInise] hydrate failed:', error);
+      return { ok: false, error };
     }
     window.dispatchEvent(new Event('storage-update'));
+    return { ok: true };
   },
 };
 

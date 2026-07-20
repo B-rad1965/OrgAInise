@@ -11,6 +11,7 @@ import {
 const router: IRouter = Router();
 
 class SyncOwnershipConflictError extends Error {}
+class SyncStaleWriteConflictError extends Error {}
 
 /* ─── DTO converters ──────────────────────────────────────────────── */
 
@@ -58,6 +59,24 @@ function historyToDto(r: HistoryRow) {
   };
 }
 
+function expectedUpdateFromHeader(req: Request): Date | null | "invalid" {
+  const raw = req.get("X-Orgainise-Updated-At");
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? "invalid" : parsed;
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record).filter(key => record[key] !== undefined).sort().map(key =>
+      `${JSON.stringify(key)}:${canonicalJson(record[key])}`,
+    ).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "undefined";
+}
+
 /* ─── Projects ────────────────────────────────────────────────────── */
 
 router.get("/projects", async (req: Request, res: Response): Promise<void> => {
@@ -76,16 +95,32 @@ router.post("/projects", async (req: Request, res: Response): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const { id, name, type, categories, createdAt, updatedAt } = parsed.data;
+  const expectedUpdate = expectedUpdateFromHeader(req);
+  if (expectedUpdate === "invalid") { res.status(400).json({ error: "Invalid expected update timestamp" }); return; }
   const [row] = await db
     .insert(projectsTable)
     .values({ id, userId: req.user.id, name, type, categories, createdAt: new Date(createdAt), updatedAt: new Date(updatedAt) })
     .onConflictDoUpdate({
       target: projectsTable.id,
       set: { name, type, categories, updatedAt: new Date(updatedAt) },
-      setWhere: eq(projectsTable.userId, req.user.id),
+      setWhere: expectedUpdate
+        ? and(
+            eq(projectsTable.userId, req.user.id),
+            sql`${projectsTable.updatedAt} = ${expectedUpdate}`,
+          )
+        : and(
+            eq(projectsTable.userId, req.user.id),
+            sql`${projectsTable.updatedAt} <= excluded.updated_at`,
+          ),
     })
     .returning();
-  if (!row) { res.status(409).json({ error: "Project ID is already in use" }); return; }
+  if (!row) {
+    res.status(409).json({
+      code: "SYNC_CONFLICT",
+      error: "Project was not saved because the cloud record is newer or the ID is already in use",
+    });
+    return;
+  }
   res.json(projectToDto(row));
 });
 
@@ -95,12 +130,31 @@ router.delete(
     if (!req.isAuthenticated()) { res.status(401).json({ error: "Authentication required" }); return; }
     const { projectId } = req.params;
     const [existing] = await db
-      .select({ id: projectsTable.id, userId: projectsTable.userId })
+      .select({ id: projectsTable.id, userId: projectsTable.userId, updatedAt: projectsTable.updatedAt })
       .from(projectsTable)
       .where(eq(projectsTable.id, projectId));
     if (!existing) { res.status(404).json({ error: "Project not found" }); return; }
     if (existing.userId !== req.user.id) { res.status(403).json({ error: "Forbidden" }); return; }
-    await db.delete(projectsTable).where(eq(projectsTable.id, projectId));
+    const expectedUpdate = expectedUpdateFromHeader(req);
+    if (expectedUpdate === "invalid") { res.status(400).json({ error: "Invalid expected update timestamp" }); return; }
+    if (expectedUpdate && existing.updatedAt > expectedUpdate) {
+      res.status(409).json({ code: "SYNC_CONFLICT", error: "Project was not deleted because the cloud record is newer" });
+      return;
+    }
+    const deleteCondition = expectedUpdate
+      ? and(
+          eq(projectsTable.id, projectId),
+          eq(projectsTable.userId, req.user.id),
+          sql`${projectsTable.updatedAt} = ${expectedUpdate}`,
+        )
+      : and(eq(projectsTable.id, projectId), eq(projectsTable.userId, req.user.id));
+    const deleted = await db.delete(projectsTable)
+      .where(deleteCondition)
+      .returning({ id: projectsTable.id });
+    if (expectedUpdate && deleted.length === 0) {
+      res.status(409).json({ code: "SYNC_CONFLICT", error: "Project changed while it was being deleted" });
+      return;
+    }
     res.status(204).send();
   },
 );
@@ -135,6 +189,8 @@ router.put(
     if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
     const { id, projectId, text, category, importanceLevel, createdAt, updatedAt } = parsed.data;
+    const expectedUpdate = expectedUpdateFromHeader(req);
+    if (expectedUpdate === "invalid") { res.status(400).json({ error: "Invalid expected update timestamp" }); return; }
     const [project] = await db
       .select({ userId: projectsTable.userId })
       .from(projectsTable)
@@ -148,13 +204,26 @@ router.put(
       .onConflictDoUpdate({
         target: memoriesTable.id,
         set: { text, category, importanceLevel, updatedAt: new Date(updatedAt) },
-        setWhere: and(
-          eq(memoriesTable.userId, req.user.id),
-          eq(memoriesTable.projectId, projectId),
-        ),
+        setWhere: expectedUpdate
+          ? and(
+              eq(memoriesTable.userId, req.user.id),
+              eq(memoriesTable.projectId, projectId),
+              sql`${memoriesTable.updatedAt} = ${expectedUpdate}`,
+            )
+          : and(
+              eq(memoriesTable.userId, req.user.id),
+              eq(memoriesTable.projectId, projectId),
+              sql`${memoriesTable.updatedAt} <= excluded.updated_at`,
+            ),
       })
       .returning();
-    if (!row) { res.status(409).json({ error: "Memory item ID is already in use" }); return; }
+    if (!row) {
+      res.status(409).json({
+        code: "SYNC_CONFLICT",
+        error: "Memory was not saved because the cloud record is newer or the ID is already in use",
+      });
+      return;
+    }
     res.json(memoryToDto(row));
   },
 );
@@ -165,12 +234,31 @@ router.delete(
     if (!req.isAuthenticated()) { res.status(401).json({ error: "Authentication required" }); return; }
     const { memoryId } = req.params;
     const [existing] = await db
-      .select({ id: memoriesTable.id, userId: memoriesTable.userId })
+      .select({ id: memoriesTable.id, userId: memoriesTable.userId, updatedAt: memoriesTable.updatedAt })
       .from(memoriesTable)
       .where(eq(memoriesTable.id, memoryId));
     if (!existing) { res.status(404).json({ error: "Memory item not found" }); return; }
     if (existing.userId !== req.user.id) { res.status(403).json({ error: "Forbidden" }); return; }
-    await db.delete(memoriesTable).where(eq(memoriesTable.id, memoryId));
+    const expectedUpdate = expectedUpdateFromHeader(req);
+    if (expectedUpdate === "invalid") { res.status(400).json({ error: "Invalid expected update timestamp" }); return; }
+    if (expectedUpdate && existing.updatedAt > expectedUpdate) {
+      res.status(409).json({ code: "SYNC_CONFLICT", error: "Memory was not deleted because the cloud record is newer" });
+      return;
+    }
+    const deleteCondition = expectedUpdate
+      ? and(
+          eq(memoriesTable.id, memoryId),
+          eq(memoriesTable.userId, req.user.id),
+          sql`${memoriesTable.updatedAt} = ${expectedUpdate}`,
+        )
+      : and(eq(memoriesTable.id, memoryId), eq(memoriesTable.userId, req.user.id));
+    const deleted = await db.delete(memoriesTable)
+      .where(deleteCondition)
+      .returning({ id: memoriesTable.id });
+    if (expectedUpdate && deleted.length === 0) {
+      res.status(409).json({ code: "SYNC_CONFLICT", error: "Memory changed while it was being deleted" });
+      return;
+    }
     res.status(204).send();
   },
 );
@@ -228,10 +316,20 @@ router.post(
         setWhere: and(
           eq(sessionHistoryTable.userId, req.user.id),
           eq(sessionHistoryTable.projectId, projectId),
+          sql`${sessionHistoryTable.notes} = excluded.notes`,
+          sql`${sessionHistoryTable.suggestionsJson} IS NOT DISTINCT FROM excluded.suggestions_json`,
+          sql`${sessionHistoryTable.approvedCount} = excluded.approved_count`,
+          sql`${sessionHistoryTable.createdAt} = excluded.created_at`,
         ),
       })
       .returning();
-    if (!row) { res.status(409).json({ error: "Session history ID is already in use" }); return; }
+    if (!row) {
+      res.status(409).json({
+        code: "SYNC_CONFLICT",
+        error: "Session history was not saved because the same ID already has different data",
+      });
+      return;
+    }
 
     // Enforce the 10-entry cap per project
     const allEntries = await db
@@ -291,7 +389,14 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
 
       const [existingProjects, existingMemories, existingHistory] = await Promise.all([
         projectIds.length > 0
-          ? tx.select({ id: projectsTable.id, userId: projectsTable.userId })
+          ? tx.select({
+              id: projectsTable.id,
+              userId: projectsTable.userId,
+              updatedAt: projectsTable.updatedAt,
+              name: projectsTable.name,
+              type: projectsTable.type,
+              categories: projectsTable.categories,
+            })
               .from(projectsTable).where(inArray(projectsTable.id, projectIds))
           : [],
         memories.length > 0
@@ -299,6 +404,10 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
               id: memoriesTable.id,
               userId: memoriesTable.userId,
               projectId: memoriesTable.projectId,
+              updatedAt: memoriesTable.updatedAt,
+              text: memoriesTable.text,
+              category: memoriesTable.category,
+              importanceLevel: memoriesTable.importanceLevel,
             })
               .from(memoriesTable).where(inArray(memoriesTable.id, memories.map(m => m.id)))
           : [],
@@ -307,6 +416,10 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
               id: sessionHistoryTable.id,
               userId: sessionHistoryTable.userId,
               projectId: sessionHistoryTable.projectId,
+              notes: sessionHistoryTable.notes,
+              suggestionsJson: sessionHistoryTable.suggestionsJson,
+              approvedCount: sessionHistoryTable.approvedCount,
+              createdAt: sessionHistoryTable.createdAt,
             })
               .from(sessionHistoryTable).where(inArray(sessionHistoryTable.id, history.map(h => h.id)))
           : [],
@@ -331,6 +444,37 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
         throw new SyncOwnershipConflictError();
       }
 
+      const incomingProjects = new Map(projects.map(p => [p.id, p]));
+      const incomingMemories = new Map(memories.map(m => [m.id, m]));
+      const incomingHistory = new Map(history.map(h => [h.id, h]));
+      const hasStaleWrite = existingProjects.some(project => {
+        const incoming = incomingProjects.get(project.id);
+        if (!incoming) return false;
+        const incomingUpdate = new Date(incoming.updatedAt);
+        return project.updatedAt > incomingUpdate
+          || (project.updatedAt.getTime() === incomingUpdate.getTime()
+            && (project.name !== incoming.name
+              || project.type !== incoming.type
+              || JSON.stringify(project.categories) !== JSON.stringify(incoming.categories)));
+      }) || existingMemories.some(memory => {
+        const incoming = incomingMemories.get(memory.id);
+        if (!incoming) return false;
+        const incomingUpdate = new Date(incoming.updatedAt);
+        return memory.updatedAt > incomingUpdate
+          || (memory.updatedAt.getTime() === incomingUpdate.getTime()
+            && (memory.text !== incoming.text
+              || memory.category !== incoming.category
+              || memory.importanceLevel !== incoming.importanceLevel));
+      }) || existingHistory.some(entry => {
+        const incoming = incomingHistory.get(entry.id);
+        return incoming !== undefined
+          && (entry.notes !== incoming.rawNotes
+            || entry.approvedCount !== incoming.approvedCount
+            || entry.createdAt.getTime() !== new Date(incoming.createdAt).getTime()
+            || canonicalJson(entry.suggestionsJson ?? []) !== canonicalJson(incoming.suggestions));
+      });
+      if (hasStaleWrite) throw new SyncStaleWriteConflictError();
+
       if (projects.length > 0) {
         const inserted = await tx
           .insert(projectsTable)
@@ -346,10 +490,21 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
               categories: sql`excluded.categories`,
               updatedAt:  sql`excluded.updated_at`,
             },
-            setWhere: eq(projectsTable.userId, userId),
+            setWhere: and(
+              eq(projectsTable.userId, userId),
+              sql`(
+                ${projectsTable.updatedAt} < excluded.updated_at
+                OR (
+                  ${projectsTable.updatedAt} = excluded.updated_at
+                  AND ${projectsTable.name} = excluded.name
+                  AND ${projectsTable.type} = excluded.type
+                  AND ${projectsTable.categories} = excluded.categories
+                )
+              )`,
+            ),
           })
           .returning({ id: projectsTable.id });
-        if (inserted.length !== projects.length) throw new SyncOwnershipConflictError();
+        if (inserted.length !== projects.length) throw new SyncStaleWriteConflictError();
       }
 
       if (memories.length > 0) {
@@ -371,10 +526,19 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
             setWhere: and(
               eq(memoriesTable.userId, userId),
               sql`${memoriesTable.projectId} = excluded.project_id`,
+              sql`(
+                ${memoriesTable.updatedAt} < excluded.updated_at
+                OR (
+                  ${memoriesTable.updatedAt} = excluded.updated_at
+                  AND ${memoriesTable.text} = excluded.text
+                  AND ${memoriesTable.category} = excluded.category
+                  AND ${memoriesTable.importanceLevel} = excluded.importance_level
+                )
+              )`,
             ),
           })
           .returning({ id: memoriesTable.id });
-        if (inserted.length !== memories.length) throw new SyncOwnershipConflictError();
+        if (inserted.length !== memories.length) throw new SyncStaleWriteConflictError();
       }
 
       if (history.length > 0) {
@@ -397,13 +561,24 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
             setWhere: and(
               eq(sessionHistoryTable.userId, userId),
               sql`${sessionHistoryTable.projectId} = excluded.project_id`,
+              sql`${sessionHistoryTable.notes} = excluded.notes`,
+              sql`${sessionHistoryTable.suggestionsJson} IS NOT DISTINCT FROM excluded.suggestions_json`,
+              sql`${sessionHistoryTable.approvedCount} = excluded.approved_count`,
+              sql`${sessionHistoryTable.createdAt} = excluded.created_at`,
             ),
           })
           .returning({ id: sessionHistoryTable.id });
-        if (inserted.length !== history.length) throw new SyncOwnershipConflictError();
+        if (inserted.length !== history.length) throw new SyncStaleWriteConflictError();
       }
     });
   } catch (error) {
+    if (error instanceof SyncStaleWriteConflictError) {
+      res.status(409).json({
+        code: "SYNC_CONFLICT",
+        error: "Sync stopped because the cloud contains newer or conflicting project, memory, or history data",
+      });
+      return;
+    }
     if (error instanceof SyncOwnershipConflictError) {
       res.status(409).json({ error: "Sync rejected because one or more records are not owned by this account" });
       return;
