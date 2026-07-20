@@ -47,6 +47,15 @@ export type RevisionSnapshot = {
   memoriesSnapshot: MemoryItem[];
 };
 
+export type BackupData = {
+  version: 1 | 2;
+  exportedAt: string;
+  projects: Project[];
+  memories: MemoryItem[];
+  history: SessionHistory[];
+  snapshots: RevisionSnapshot[];
+};
+
 /* ─── Keys ───────────────────────────────────────────────────────── */
 const STORAGE_KEYS = {
   PROJECTS:  'orgainise_projects',
@@ -108,6 +117,114 @@ function writeData<T>(key: string, data: T): void {
 }
 
 /* ─── Manual "save all" (re-writes every key) ────────────────────── */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isValidDate(value: unknown): value is string {
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value));
+}
+
+function hasUniqueIds(items: Array<{ id: string }>): boolean {
+  return new Set(items.map(item => item.id)).size === items.length;
+}
+
+function isProject(value: unknown): value is Project {
+  return isRecord(value)
+    && typeof value.id === 'string'
+    && value.id !== '__demo__'
+    && typeof value.name === 'string'
+    && typeof value.type === 'string'
+    && Array.isArray(value.categories)
+    && value.categories.every(category => typeof category === 'string')
+    && isValidDate(value.createdAt)
+    && isValidDate(value.updatedAt);
+}
+
+function isMemory(value: unknown): value is MemoryItem {
+  return isRecord(value)
+    && typeof value.id === 'string'
+    && typeof value.projectId === 'string'
+    && typeof value.text === 'string'
+    && typeof value.category === 'string'
+    && ['must-include', 'useful-context', 'archive-reference'].includes(String(value.importanceLevel))
+    && isValidDate(value.createdAt)
+    && isValidDate(value.updatedAt);
+}
+
+function isHistory(value: unknown): value is SessionHistory {
+  return isRecord(value)
+    && typeof value.id === 'string'
+    && typeof value.projectId === 'string'
+    && typeof value.rawNotes === 'string'
+    && Array.isArray(value.suggestions)
+    && value.suggestions.every(suggestion =>
+      isRecord(suggestion)
+      && typeof suggestion.suggestedText === 'string'
+      && typeof suggestion.category === 'string'
+      && ['must-include', 'useful-context', 'archive-reference'].includes(String(suggestion.importanceLevel))
+      && typeof suggestion.reason === 'string'
+      && (suggestion.conflictNote === null || suggestion.conflictNote === undefined || typeof suggestion.conflictNote === 'string')
+    )
+    && typeof value.approvedCount === 'number'
+    && Number.isInteger(value.approvedCount)
+    && value.approvedCount >= 0
+    && isValidDate(value.createdAt);
+}
+
+function isSnapshot(value: unknown): value is RevisionSnapshot {
+  return isRecord(value)
+    && typeof value.id === 'string'
+    && typeof value.projectId === 'string'
+    && typeof value.label === 'string'
+    && isValidDate(value.createdAt)
+    && Array.isArray(value.memoriesSnapshot)
+    && value.memoriesSnapshot.every(isMemory);
+}
+
+export function parseBackup(value: unknown): { ok: true; data: BackupData } | { ok: false; error: string } {
+  if (!isRecord(value) || (value.version !== 1 && value.version !== 2)) {
+    return { ok: false, error: 'This is not a supported OrgAInise backup (expected version 1 or 2).' };
+  }
+
+  const snapshots = value.version === 1 && value.snapshots === undefined ? [] : value.snapshots;
+  if (!isValidDate(value.exportedAt)
+    || !Array.isArray(value.projects) || !value.projects.every(isProject)
+    || !Array.isArray(value.memories) || !value.memories.every(isMemory)
+    || !Array.isArray(value.history) || !value.history.every(isHistory)
+    || !Array.isArray(snapshots) || !snapshots.every(isSnapshot)) {
+    return { ok: false, error: 'The backup contains missing or invalid data.' };
+  }
+
+  if (!hasUniqueIds(value.projects) || !hasUniqueIds(value.memories)
+    || !hasUniqueIds(value.history) || !hasUniqueIds(snapshots)) {
+    return { ok: false, error: 'The backup contains duplicate record IDs.' };
+  }
+
+  const projectIds = new Set(value.projects.map(project => project.id));
+  const hasOrphan = [...value.memories, ...value.history, ...snapshots]
+    .some(item => !projectIds.has(item.projectId));
+  const hasInvalidSnapshotMemory = snapshots.some(snapshot =>
+    !hasUniqueIds(snapshot.memoriesSnapshot)
+    || snapshot.memoriesSnapshot.some(memory => memory.projectId !== snapshot.projectId),
+  );
+  if (hasOrphan || hasInvalidSnapshotMemory) {
+    return { ok: false, error: 'The backup contains records that do not belong to a valid project.' };
+  }
+
+  return {
+    ok: true,
+    data: {
+      version: value.version,
+      exportedAt: value.exportedAt,
+      projects: value.projects,
+      memories: value.memories,
+      history: value.history,
+      snapshots,
+    },
+  };
+}
+
 export function saveAll(): { ok: boolean; error?: string } {
   try {
     const projects = readData<Project[]>(STORAGE_KEYS.PROJECTS, []);
@@ -136,6 +253,45 @@ export function saveAll(): { ok: boolean; error?: string } {
 
 /* ─── Storage API ────────────────────────────────────────────────── */
 export const Storage = {
+  restoreBackup: (backup: BackupData): { ok: boolean; error?: string } => {
+    const keys = Object.values(STORAGE_KEYS);
+    const previous = new Map<string, string | null>();
+
+    try {
+      for (const key of keys) previous.set(key, localStorage.getItem(key));
+      const demoProjects = readData<Project[]>(STORAGE_KEYS.PROJECTS, []).filter(p => p.id === '__demo__');
+      const demoMemories = readData<MemoryItem[]>(STORAGE_KEYS.MEMORIES, []).filter(m => m.projectId === '__demo__');
+      const demoHistory = readData<SessionHistory[]>(STORAGE_KEYS.HISTORY, []).filter(h => h.projectId === '__demo__');
+      const restored = new Map<string, string>([
+        [STORAGE_KEYS.PROJECTS, JSON.stringify([...demoProjects, ...backup.projects])],
+        [STORAGE_KEYS.MEMORIES, JSON.stringify([...demoMemories, ...backup.memories])],
+        [STORAGE_KEYS.HISTORY, JSON.stringify([...demoHistory, ...backup.history])],
+        [STORAGE_KEYS.SNAPSHOTS, JSON.stringify(backup.snapshots)],
+      ]);
+
+      for (const [key, serialized] of restored) localStorage.setItem(key, serialized);
+      if ([...restored].some(([key, serialized]) => localStorage.getItem(key) !== serialized)) {
+        throw new Error('Browser storage failed the restore read-back check.');
+      }
+    } catch (error) {
+      try {
+        for (const [key, oldValue] of previous) {
+          if (oldValue === null) localStorage.removeItem(key);
+          else localStorage.setItem(key, oldValue);
+        }
+      } catch {
+        return { ok: false, error: 'Restore failed and browser storage could not be rolled back completely.' };
+      }
+      return { ok: false, error: error instanceof Error ? error.message : 'Could not write the backup to browser storage.' };
+    }
+
+    window.dispatchEvent(new CustomEvent('orgainise:write', {
+      detail: { phase: 'success', timestamp: Date.now() },
+    }));
+    window.dispatchEvent(new Event('storage-update'));
+    return { ok: true };
+  },
+
   /* Projects */
   getProjects: (): Project[] =>
     readData<Project[]>(STORAGE_KEYS.PROJECTS, []),

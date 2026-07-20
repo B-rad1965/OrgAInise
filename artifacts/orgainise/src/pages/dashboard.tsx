@@ -1,5 +1,6 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useSyncedStorage as useStorage } from "@/lib/synced-storage";
+import { parseBackup, type BackupData } from "@/lib/storage";
 import { Link, useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Plus, BrainCircuit, Database, Clock, Search,
   ArrowUpDown, AlarmClock, ArrowDownAZ, CalendarClock,
-  MoreHorizontal, Copy, Trash2, Download, Lock,
+  MoreHorizontal, Copy, Trash2, Download, Upload, Lock,
 } from "lucide-react";
 import { DEMO_PROJECT_ID } from "@/lib/demo-project";
 import { formatDistanceToNow } from "date-fns";
@@ -63,6 +64,8 @@ export default function Dashboard() {
   const [search, setSearch]               = useState("");
   const [sort, setSort]                   = useState<SortOption>("recently-updated");
   const [deleteTarget, setDeleteTarget]   = useState<string | null>(null);
+  const [pendingRestore, setPendingRestore] = useState<{ fileName: string; data: BackupData } | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -87,7 +90,7 @@ export default function Dashboard() {
     const projectIds  = new Set(allProjects.map(p => p.id));
     const allSnapshots = Storage.getAllSnapshots().filter(s => projectIds.has(s.projectId));
 
-    const backup = {
+    const backup: BackupData = {
       exportedAt: new Date().toISOString(),
       version: 2,
       projects: allProjects,
@@ -109,6 +112,44 @@ export default function Dashboard() {
     toast({
       title: "Backup downloaded",
       description: `${allProjects.length} project(s) · ${allMemories.length} memory item(s) · ${allHistory.length} session(s) · ${allSnapshots.length} revision snapshot(s) exported.`,
+    });
+  }
+
+  async function handleImportFile(file: File | undefined) {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "Backup not imported", description: "Backup files must be 10 MB or smaller.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const parsedJson: unknown = JSON.parse(await file.text());
+      const parsed = parseBackup(parsedJson);
+      if (!parsed.ok) {
+        toast({ title: "Backup not imported", description: parsed.error, variant: "destructive" });
+        return;
+      }
+      setPendingRestore({ fileName: file.name, data: parsed.data });
+    } catch {
+      toast({ title: "Backup not imported", description: "The selected file is not valid JSON.", variant: "destructive" });
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  }
+
+  function handleRestoreConfirm() {
+    if (!pendingRestore) return;
+    const result = Storage.restoreBackup(pendingRestore.data);
+    if (!result.ok) {
+      toast({ title: "Restore failed", description: result.error, variant: "destructive" });
+      return;
+    }
+
+    const count = pendingRestore.data.projects.length;
+    setPendingRestore(null);
+    toast({
+      title: "Backup restored",
+      description: `${count} project${count === 1 ? "" : "s"} restored from this backup.`,
     });
   }
 
@@ -138,18 +179,38 @@ export default function Dashboard() {
             <h1 className="text-3xl font-bold tracking-tight">Command Centre</h1>
             <p className="text-muted-foreground mt-1">Keep your projects organized and your AI up to speed.</p>
           </div>
-          {projects.some(p => p.id !== DEMO_PROJECT_ID) && (
+          <div className="flex items-center gap-2 shrink-0">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={event => void handleImportFile(event.target.files?.[0])}
+              data-testid="input-import-data"
+            />
             <Button
               variant="outline"
               size="sm"
-              onClick={handleExport}
-              className="gap-2 shrink-0"
-              data-testid="button-export-data"
+              onClick={() => importInputRef.current?.click()}
+              className="gap-2"
+              data-testid="button-import-data"
             >
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Export All Data</span>
+              <Upload className="h-4 w-4" />
+              <span className="hidden sm:inline">Import Backup</span>
             </Button>
-          )}
+            {projects.some(p => p.id !== DEMO_PROJECT_ID) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExport}
+                className="gap-2"
+                data-testid="button-export-data"
+              >
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Export All Data</span>
+              </Button>
+            )}
+          </div>
         </div>
 
         {projects.filter(p => p.id !== DEMO_PROJECT_ID).length === 0 ? (
@@ -347,7 +408,8 @@ export default function Dashboard() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete project?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove the project, all its memory items, and session history. This cannot be undone.
+              This will permanently remove the project, all its memory items, session history, and revision snapshots.
+              This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -358,6 +420,24 @@ export default function Dashboard() {
               onClick={handleDeleteConfirm}
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!pendingRestore} onOpenChange={open => !open && setPendingRestore(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore this backup?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will replace all projects and memory currently stored on this device with the validated data from
+              {" "}<span className="font-medium text-foreground">{pendingRestore?.fileName}</span>. Cloud data will not be changed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRestoreConfirm} data-testid="button-restore-confirm">
+              Restore Backup
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
