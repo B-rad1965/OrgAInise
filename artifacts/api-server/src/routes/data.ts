@@ -10,6 +10,8 @@ import {
 
 const router: IRouter = Router();
 
+class SyncOwnershipConflictError extends Error {}
+
 /* ─── DTO converters ──────────────────────────────────────────────── */
 
 type ProjectRow = typeof projectsTable.$inferSelect;
@@ -80,8 +82,10 @@ router.post("/projects", async (req: Request, res: Response): Promise<void> => {
     .onConflictDoUpdate({
       target: projectsTable.id,
       set: { name, type, categories, updatedAt: new Date(updatedAt) },
+      setWhere: eq(projectsTable.userId, req.user.id),
     })
     .returning();
+  if (!row) { res.status(409).json({ error: "Project ID is already in use" }); return; }
   res.json(projectToDto(row));
 });
 
@@ -144,8 +148,13 @@ router.put(
       .onConflictDoUpdate({
         target: memoriesTable.id,
         set: { text, category, importanceLevel, updatedAt: new Date(updatedAt) },
+        setWhere: and(
+          eq(memoriesTable.userId, req.user.id),
+          eq(memoriesTable.projectId, projectId),
+        ),
       })
       .returning();
+    if (!row) { res.status(409).json({ error: "Memory item ID is already in use" }); return; }
     res.json(memoryToDto(row));
   },
 );
@@ -216,8 +225,13 @@ router.post(
       .onConflictDoUpdate({
         target: sessionHistoryTable.id,
         set: { notes: rawNotes, suggestionsJson: suggestions as object[], approvedCount },
+        setWhere: and(
+          eq(sessionHistoryTable.userId, req.user.id),
+          eq(sessionHistoryTable.projectId, projectId),
+        ),
       })
       .returning();
+    if (!row) { res.status(409).json({ error: "Session history ID is already in use" }); return; }
 
     // Enforce the 10-entry cap per project
     const allEntries = await db
@@ -267,64 +281,135 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
   const { projects, memories, history } = parsed.data;
   const userId = req.user.id;
 
-  await db.transaction(async (tx) => {
-    if (projects.length > 0) {
-      await tx
-        .insert(projectsTable)
-        .values(projects.map(p => ({
-          id: p.id, userId, name: p.name, type: p.type, categories: p.categories,
-          createdAt: new Date(p.createdAt), updatedAt: new Date(p.updatedAt),
-        })))
-        .onConflictDoUpdate({
-          target: projectsTable.id,
-          set: {
-            name:       sql`excluded.name`,
-            type:       sql`excluded.type`,
-            categories: sql`excluded.categories`,
-            updatedAt:  sql`excluded.updated_at`,
-          },
-        });
-    }
+  try {
+    await db.transaction(async (tx) => {
+      const projectIds = [...new Set([
+        ...projects.map(p => p.id),
+        ...memories.map(m => m.projectId),
+        ...history.map(h => h.projectId),
+      ])];
 
-    if (memories.length > 0) {
-      await tx
-        .insert(memoriesTable)
-        .values(memories.map(m => ({
-          id: m.id, userId, projectId: m.projectId,
-          text: m.text, category: m.category, importanceLevel: m.importanceLevel,
-          createdAt: new Date(m.createdAt), updatedAt: new Date(m.updatedAt),
-        })))
-        .onConflictDoUpdate({
-          target: memoriesTable.id,
-          set: {
-            text:            sql`excluded.text`,
-            category:        sql`excluded.category`,
-            importanceLevel: sql`excluded.importance_level`,
-            updatedAt:       sql`excluded.updated_at`,
-          },
-        });
-    }
+      const [existingProjects, existingMemories, existingHistory] = await Promise.all([
+        projectIds.length > 0
+          ? tx.select({ id: projectsTable.id, userId: projectsTable.userId })
+              .from(projectsTable).where(inArray(projectsTable.id, projectIds))
+          : [],
+        memories.length > 0
+          ? tx.select({
+              id: memoriesTable.id,
+              userId: memoriesTable.userId,
+              projectId: memoriesTable.projectId,
+            })
+              .from(memoriesTable).where(inArray(memoriesTable.id, memories.map(m => m.id)))
+          : [],
+        history.length > 0
+          ? tx.select({
+              id: sessionHistoryTable.id,
+              userId: sessionHistoryTable.userId,
+              projectId: sessionHistoryTable.projectId,
+            })
+              .from(sessionHistoryTable).where(inArray(sessionHistoryTable.id, history.map(h => h.id)))
+          : [],
+      ]);
 
-    if (history.length > 0) {
-      await tx
-        .insert(sessionHistoryTable)
-        .values(history.map(h => ({
-          id: h.id, userId, projectId: h.projectId,
-          notes: h.rawNotes,
-          suggestionsJson: h.suggestions as object[],
-          approvedCount: h.approvedCount,
-          createdAt: new Date(h.createdAt),
-        })))
-        .onConflictDoUpdate({
-          target: sessionHistoryTable.id,
-          set: {
-            notes:           sql`excluded.notes`,
-            suggestionsJson: sql`excluded.suggestions_json`,
-            approvedCount:   sql`excluded.approved_count`,
-          },
-        });
+      const hasForeignOwner = [...existingProjects, ...existingMemories, ...existingHistory]
+        .some(row => row.userId !== userId);
+      const incomingMemoryProjects = new Map(memories.map(m => [m.id, m.projectId]));
+      const incomingHistoryProjects = new Map(history.map(h => [h.id, h.projectId]));
+      const hasMismatchedParent = existingMemories.some(m =>
+        incomingMemoryProjects.get(m.id) !== m.projectId,
+      ) || existingHistory.some(h =>
+        incomingHistoryProjects.get(h.id) !== h.projectId,
+      );
+      const incomingProjectIds = new Set(projects.map(p => p.id));
+      const ownedProjectIds = new Set(existingProjects.filter(p => p.userId === userId).map(p => p.id));
+      const hasMissingProject = projectIds.some(id =>
+        !incomingProjectIds.has(id) && !ownedProjectIds.has(id),
+      );
+
+      if (hasForeignOwner || hasMismatchedParent || hasMissingProject) {
+        throw new SyncOwnershipConflictError();
+      }
+
+      if (projects.length > 0) {
+        const inserted = await tx
+          .insert(projectsTable)
+          .values(projects.map(p => ({
+            id: p.id, userId, name: p.name, type: p.type, categories: p.categories,
+            createdAt: new Date(p.createdAt), updatedAt: new Date(p.updatedAt),
+          })))
+          .onConflictDoUpdate({
+            target: projectsTable.id,
+            set: {
+              name:       sql`excluded.name`,
+              type:       sql`excluded.type`,
+              categories: sql`excluded.categories`,
+              updatedAt:  sql`excluded.updated_at`,
+            },
+            setWhere: eq(projectsTable.userId, userId),
+          })
+          .returning({ id: projectsTable.id });
+        if (inserted.length !== projects.length) throw new SyncOwnershipConflictError();
+      }
+
+      if (memories.length > 0) {
+        const inserted = await tx
+          .insert(memoriesTable)
+          .values(memories.map(m => ({
+            id: m.id, userId, projectId: m.projectId,
+            text: m.text, category: m.category, importanceLevel: m.importanceLevel,
+            createdAt: new Date(m.createdAt), updatedAt: new Date(m.updatedAt),
+          })))
+          .onConflictDoUpdate({
+            target: memoriesTable.id,
+            set: {
+              text:            sql`excluded.text`,
+              category:        sql`excluded.category`,
+              importanceLevel: sql`excluded.importance_level`,
+              updatedAt:       sql`excluded.updated_at`,
+            },
+            setWhere: and(
+              eq(memoriesTable.userId, userId),
+              sql`${memoriesTable.projectId} = excluded.project_id`,
+            ),
+          })
+          .returning({ id: memoriesTable.id });
+        if (inserted.length !== memories.length) throw new SyncOwnershipConflictError();
+      }
+
+      if (history.length > 0) {
+        const inserted = await tx
+          .insert(sessionHistoryTable)
+          .values(history.map(h => ({
+            id: h.id, userId, projectId: h.projectId,
+            notes: h.rawNotes,
+            suggestionsJson: h.suggestions as object[],
+            approvedCount: h.approvedCount,
+            createdAt: new Date(h.createdAt),
+          })))
+          .onConflictDoUpdate({
+            target: sessionHistoryTable.id,
+            set: {
+              notes:           sql`excluded.notes`,
+              suggestionsJson: sql`excluded.suggestions_json`,
+              approvedCount:   sql`excluded.approved_count`,
+            },
+            setWhere: and(
+              eq(sessionHistoryTable.userId, userId),
+              sql`${sessionHistoryTable.projectId} = excluded.project_id`,
+            ),
+          })
+          .returning({ id: sessionHistoryTable.id });
+        if (inserted.length !== history.length) throw new SyncOwnershipConflictError();
+      }
+    });
+  } catch (error) {
+    if (error instanceof SyncOwnershipConflictError) {
+      res.status(409).json({ error: "Sync rejected because one or more records are not owned by this account" });
+      return;
     }
-  });
+    throw error;
+  }
 
   // Enforce 10-entry cap per project
   if (history.length > 0) {
