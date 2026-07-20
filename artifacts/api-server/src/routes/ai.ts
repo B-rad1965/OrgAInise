@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import OpenAI from "openai";
 import {
   AnalyzeSessionBody,
@@ -35,12 +35,70 @@ function getOpenAIClient() {
   return new OpenAI({ apiKey });
 }
 
+const MAX_PROJECT_NAME_CHARS = 200;
+const MAX_PROJECT_TYPE_CHARS = 100;
+const MAX_CATEGORY_CHARS = 100;
+const MAX_CATEGORIES = 50;
+const MAX_MEMORY_TEXT_CHARS = 10_000;
+
+function totalTextLength(items: Array<{ text: string }>): number {
+  return items.reduce((total, item) => total + item.text.length, 0);
+}
+
+function rejectOversized(res: Response, reason: string): void {
+  res.status(413).json({ error: `AI request is too large: ${reason}` });
+}
+
+function commonLimitError(
+  projectName: string,
+  projectType: string,
+  categories: string[],
+  memoryItems: Array<{ text: string; category: string; id?: string; createdAt?: string }>,
+  maxItems: number,
+  maxTotalMemoryChars: number,
+): string | null {
+  if (projectName.length > MAX_PROJECT_NAME_CHARS) return `project name exceeds ${MAX_PROJECT_NAME_CHARS} characters.`;
+  if (projectType.length > MAX_PROJECT_TYPE_CHARS) return `project type exceeds ${MAX_PROJECT_TYPE_CHARS} characters.`;
+  if (categories.length > MAX_CATEGORIES) return `more than ${MAX_CATEGORIES} categories were provided.`;
+  if (categories.some(category => category.length > MAX_CATEGORY_CHARS)) {
+    return `a category exceeds ${MAX_CATEGORY_CHARS} characters.`;
+  }
+  if (memoryItems.length > maxItems) return `more than ${maxItems} memory items were provided.`;
+  if (memoryItems.some(item => item.text.length > MAX_MEMORY_TEXT_CHARS)) {
+    return `a memory item exceeds ${MAX_MEMORY_TEXT_CHARS.toLocaleString()} characters.`;
+  }
+  if (memoryItems.some(item => item.category.length > MAX_CATEGORY_CHARS)) {
+    return `a memory category exceeds ${MAX_CATEGORY_CHARS} characters.`;
+  }
+  if (memoryItems.some(item => (item.id?.length ?? 0) > 200)) {
+    return "a memory ID exceeds 200 characters.";
+  }
+  if (memoryItems.some(item => (item.createdAt?.length ?? 0) > 100)) {
+    return "a memory timestamp exceeds 100 characters.";
+  }
+  if (totalTextLength(memoryItems) > maxTotalMemoryChars) {
+    return `combined memory text exceeds ${maxTotalMemoryChars.toLocaleString()} characters.`;
+  }
+  return null;
+}
+
 /* ─── Analyze Session ────────────────────────────────────────────── */
 
 router.post("/ai/analyze-session", async (req, res): Promise<void> => {
   const parsed = AnalyzeSessionBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { projectName, projectType, categories, existingMemory, sessionNotes } = parsed.data;
+  const limitError = commonLimitError(projectName, projectType, categories, existingMemory, 500, 80_000);
+  if (sessionNotes.length > 20_000) {
+    rejectOversized(res, "session notes exceed 20,000 characters.");
+    return;
+  }
+  if (limitError) {
+    rejectOversized(res, limitError);
     return;
   }
 
@@ -52,9 +110,6 @@ router.post("/ai/analyze-session", async (req, res): Promise<void> => {
     });
     return;
   }
-
-  const { projectName, projectType, categories, existingMemory, sessionNotes } =
-    parsed.data;
 
   const existingMemoryText =
     existingMemory.length > 0
@@ -175,15 +230,6 @@ router.post("/ai/generate-context", async (req, res): Promise<void> => {
     return;
   }
 
-  const openai = getOpenAIClient();
-  if (!openai) {
-    res.status(503).json({
-      error:
-        "OpenAI API key is not configured. Add OPENAI_API_KEY to your Replit Secrets to enable context generation.",
-    });
-    return;
-  }
-
   const {
     projectName,
     projectType,
@@ -192,6 +238,27 @@ router.post("/ai/generate-context", async (req, res): Promise<void> => {
     includeArchive,
     memoryItems,
   } = parsed.data;
+  const limitError = commonLimitError(
+    projectName,
+    projectType,
+    selectedCategories,
+    memoryItems,
+    500,
+    100_000,
+  );
+  if (limitError) {
+    rejectOversized(res, limitError);
+    return;
+  }
+
+  const openai = getOpenAIClient();
+  if (!openai) {
+    res.status(503).json({
+      error:
+        "OpenAI API key is not configured. Add OPENAI_API_KEY to your Replit Secrets to enable context generation.",
+    });
+    return;
+  }
 
   const wordTargets = { short: 500, medium: 1000, full: 2000 };
   const targetWords = wordTargets[length] ?? 1000;
@@ -386,6 +453,18 @@ router.post("/ai/focused-context", async (req, res): Promise<void> => {
     return;
   }
 
+  const { projectName, projectType, query, memoryItems } = parsed.data;
+  const categories = [...new Set(memoryItems.map(item => item.category))];
+  const limitError = commonLimitError(projectName, projectType, categories, memoryItems, 500, 100_000);
+  if (query.length > 2_000) {
+    rejectOversized(res, "focused query exceeds 2,000 characters.");
+    return;
+  }
+  if (limitError) {
+    rejectOversized(res, limitError);
+    return;
+  }
+
   const openai = getOpenAIClient();
   if (!openai) {
     res.status(503).json({
@@ -394,7 +473,6 @@ router.post("/ai/focused-context", async (req, res): Promise<void> => {
     return;
   }
 
-  const { projectName, projectType, query, memoryItems } = parsed.data;
   const isWriting = projectType === "Writing / Worldbuilding";
 
   const memoryText = memoryItems
@@ -530,10 +608,20 @@ router.post("/ai/revise-memories", async (req, res): Promise<void> => {
   const parsed = ReviseMemoriesBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  const { projectName, projectType, revisionStatement, memoryItems } = parsed.data;
+  const categories = [...new Set(memoryItems.map(item => item.category))];
+  const limitError = commonLimitError(projectName, projectType, categories, memoryItems, 300, 80_000);
+  if (revisionStatement.length > 5_000) {
+    rejectOversized(res, "revision statement exceeds 5,000 characters.");
+    return;
+  }
+  if (limitError) {
+    rejectOversized(res, limitError);
+    return;
+  }
+
   const openai = getOpenAIClient();
   if (!openai) { res.status(503).json({ error: "OpenAI API key not configured." }); return; }
-
-  const { projectName, projectType, revisionStatement, memoryItems } = parsed.data;
 
   if (memoryItems.length === 0) {
     res.json({ summary: "No active memories to analyse.", matches: [] });
