@@ -9,8 +9,10 @@ import {
   FocusedContextBlockResponse,
   ReviseMemoriesBody,
 } from "@workspace/api-zod";
+import { aiRateLimit } from "../middlewares/aiRateLimit";
 
 const router: IRouter = Router();
+router.use("/ai", aiRateLimit);
 
 const WRITING_CATEGORY_SCHEMA = `
 STANDARD WRITING CATEGORY DEFINITIONS (use when this project has these categories):
