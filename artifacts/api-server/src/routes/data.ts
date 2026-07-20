@@ -387,7 +387,23 @@ router.post("/sync", async (req: Request, res: Response): Promise<void> => {
         ...history.map(h => h.projectId),
       ])];
 
-      const [existingProjects, existingMemories, existingHistory] = await Promise.all([
+      type ExistingProject = Pick<
+        typeof projectsTable.$inferSelect,
+        "id" | "userId" | "updatedAt" | "name" | "type" | "categories"
+      >;
+      type ExistingMemory = Pick<
+        typeof memoriesTable.$inferSelect,
+        "id" | "userId" | "projectId" | "updatedAt" | "text" | "category" | "importanceLevel"
+      >;
+      type ExistingHistory = Pick<
+        typeof sessionHistoryTable.$inferSelect,
+        "id" | "userId" | "projectId" | "notes" | "suggestionsJson" | "approvedCount" | "createdAt"
+      >;
+      const [existingProjects, existingMemories, existingHistory]: [
+        ExistingProject[],
+        ExistingMemory[],
+        ExistingHistory[],
+      ] = await Promise.all([
         projectIds.length > 0
           ? tx.select({
               id: projectsTable.id,
