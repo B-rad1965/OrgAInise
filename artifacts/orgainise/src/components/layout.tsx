@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
-import { Plus, BrainCircuit, LayoutDashboard, Cloud, CloudOff, Loader2, Save, AlertTriangle, LogIn, LogOut, User, CheckCircle2, HelpCircle } from "lucide-react";
+import { Plus, BrainCircuit, LayoutDashboard, CloudOff, Loader2, Save, AlertTriangle, LogIn, LogOut, User, CheckCircle2, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSaveStatus } from "@/hooks/use-save-status";
 import { checkStorageHealth, saveAll } from "@/lib/storage";
@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@workspace/replit-auth-web";
+import { getCloudWriteError } from "@/lib/synced-storage";
 
 const SYNC_DONE_KEY = "orgainise_db_synced";
 
@@ -25,12 +26,12 @@ function SaveChip() {
       status === 'error'  && "text-destructive border-destructive/30 bg-destructive/5",
       status === 'idle'   && "text-muted-foreground/60 border-transparent",
     )}>
-      {status === 'saving' && <><Loader2 className="h-3 w-3 animate-spin" />Saving…</>}
-      {status === 'saved'  && <><Cloud className="h-3 w-3" />Saved{lastSaved ? ` · ${formatDistanceToNow(lastSaved, { addSuffix: false })} ago` : ''}</>}
-      {status === 'error'  && <><CloudOff className="h-3 w-3" /></>}
+      {status === 'saving' && <><Loader2 className="h-3 w-3 animate-spin" />Saving locally…</>}
+      {status === 'saved'  && <><Save className="h-3 w-3" />Saved locally{lastSaved ? ` · ${formatDistanceToNow(lastSaved, { addSuffix: false })} ago` : ''}</>}
+      {status === 'error'  && <><AlertTriangle className="h-3 w-3" />Local save failed</>}
       {status === 'idle' && lastSaved && (
-        <><Cloud className="h-3 w-3 opacity-40" />
-          <span className="opacity-40">Last saved {formatDistanceToNow(lastSaved, { addSuffix: true })}</span>
+        <><Save className="h-3 w-3 opacity-40" />
+          <span className="opacity-40">Last local save {formatDistanceToNow(lastSaved, { addSuffix: true })}</span>
         </>
       )}
     </span>
@@ -88,10 +89,13 @@ function AuthButton({ dbSynced }: { dbSynced: boolean }) {
 /* ─── Layout ─────────────────────────────────────────────────────── */
 export function Layout({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
+  const { isAuthenticated } = useAuth();
   const { status, errorMsg } = useSaveStatus();
   const [storageBlocked, setStorageBlocked] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [dbSynced, setDbSynced] = useState(() => sessionStorage.getItem(SYNC_DONE_KEY) === "1");
+  const [cloudSyncError, setCloudSyncError] = useState<string | null>(() => getCloudWriteError());
+  const lastCloudErrorToastAt = useRef(0);
 
   // Run storage health check once on mount
   useEffect(() => {
@@ -112,6 +116,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       }>).detail;
 
       setDbSynced(true);
+      setCloudSyncError(null);
 
       const parts: string[] = [];
       if (projects > 0) parts.push(`${projects} project${projects !== 1 ? "s" : ""}`);
@@ -132,6 +137,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
       window.removeEventListener("orgainise:synced", handler);
       window.removeEventListener("orgainise:pulled", handler);
     };
+  }, [toast]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { error } = (e as CustomEvent<{ error: string }>).detail;
+      setDbSynced(false);
+      setCloudSyncError(error);
+
+      const now = Date.now();
+      if (now - lastCloudErrorToastAt.current >= 10_000) {
+        lastCloudErrorToastAt.current = now;
+        toast({
+          title: "Saved locally, but cloud backup failed",
+          description: error,
+          variant: "destructive",
+        });
+      }
+    };
+
+    window.addEventListener("orgainise:sync-error", handler);
+    return () => window.removeEventListener("orgainise:sync-error", handler);
   }, [toast]);
 
   useEffect(() => {
@@ -211,6 +237,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
+
+      {cloudSyncError && isAuthenticated && (
+        <div className="w-full bg-amber-400/10 border-b border-amber-400/20 px-4 py-2.5 flex items-start gap-2 text-sm text-amber-200">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div>
+            <strong>Cloud backup incomplete:</strong> {cloudSyncError}{" "}
+            <Link href="/" className="underline underline-offset-2 hover:text-amber-100">
+              Review sync diagnostics
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Storage health warning banner */}
       {storageBlocked && (

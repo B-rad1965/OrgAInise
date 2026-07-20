@@ -18,6 +18,7 @@ import { useStorage, Storage, type Project, type MemoryItem, type SessionHistory
 
 export const DEMO_PROJECT_ID = "__demo__";
 const SYNC_DONE_KEY = "orgainise_db_synced";
+const SYNC_ERROR_KEY = "orgainise_cloud_sync_error";
 
 /* ─── Sync result tracking ───────────────────────────────────────── */
 
@@ -34,7 +35,59 @@ export type SyncResult = {
 };
 
 let _lastSync: SyncResult = { direction: null, projects: 0, memories: 0, history: 0, timestamp: 0 };
+let _cloudWriteError: string | null = null;
 export function getLastSyncResult(): SyncResult { return { ..._lastSync }; }
+export function getCloudWriteError(): string | null {
+  try {
+    return sessionStorage.getItem(SYNC_ERROR_KEY) ?? _cloudWriteError;
+  } catch {
+    return _cloudWriteError;
+  }
+}
+
+function recordCloudWriteFailure(error: string): void {
+  _cloudWriteError = error;
+  try {
+    sessionStorage.removeItem(SYNC_DONE_KEY);
+    sessionStorage.setItem(SYNC_ERROR_KEY, error);
+  } catch {
+    // The in-memory state and event still make the failure visible.
+  }
+  _lastSync = {
+    direction: "failed",
+    projects: 0,
+    memories: 0,
+    history: 0,
+    error,
+    timestamp: Date.now(),
+  };
+  window.dispatchEvent(new CustomEvent("orgainise:sync-error", { detail: { error } }));
+}
+
+function clearCloudWriteFailure(): void {
+  _cloudWriteError = null;
+  try {
+    sessionStorage.removeItem(SYNC_ERROR_KEY);
+  } catch {
+    // Nothing else to clear when session storage is unavailable.
+  }
+}
+
+function markSyncDone(): void {
+  try {
+    sessionStorage.setItem(SYNC_DONE_KEY, "1");
+  } catch {
+    // Sync still succeeded; only the session marker is unavailable.
+  }
+}
+
+function clearSyncDone(): void {
+  try {
+    sessionStorage.removeItem(SYNC_DONE_KEY);
+  } catch {
+    // The live sync state remains authoritative for this page.
+  }
+}
 
 /* ─── Local count helper (excludes demo) ─────────────────────────── */
 
@@ -56,9 +109,11 @@ async function apiFetch(method: string, path: string, body?: unknown): Promise<v
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) {
+      recordCloudWriteFailure(`Cloud write failed (HTTP ${res.status}). Your changes remain saved on this device.`);
       console.warn(`[OrgAInise] DB sync ${method} /api${path} → ${res.status} (localStorage preserved)`);
     }
   } catch {
+    recordCloudWriteFailure("Cloud write failed because the server could not be reached. Your changes remain saved on this device.");
     console.warn(`[OrgAInise] DB sync ${method} /api${path} failed — offline? (localStorage preserved)`);
   }
 }
@@ -103,15 +158,22 @@ export async function forcePushToCloud(userId?: string): Promise<{
     if (!res.ok) {
       const error = `HTTP ${res.status}`;
       console.warn(`[OrgAInise] Force push FAILED → ${error}`);
+      recordCloudWriteFailure(`Full cloud backup failed (${error}). Your changes remain saved on this device.`);
       _lastSync = { direction: "failed", projects: 0, memories: 0, history: 0, error, userId, timestamp: Date.now() };
       return { ok: false, counts: { projects: 0, memories: 0, history: 0 }, error };
     }
     console.log(`[OrgAInise] Force push OK → ${projects.length} projects saved to cloud`);
+    clearCloudWriteFailure();
+    markSyncDone();
     _lastSync = { direction: "pushed", projects: projects.length, memories: memories.length, history: history.length, userId, timestamp: Date.now() };
+    window.dispatchEvent(new CustomEvent("orgainise:synced", {
+      detail: { projects: projects.length, memories: memories.length, history: history.length },
+    }));
     return { ok: true, counts: { projects: projects.length, memories: memories.length, history: history.length } };
   } catch (e) {
     const error = e instanceof Error ? e.message : "Network error";
     console.warn("[OrgAInise] Force push FAILED →", error);
+    recordCloudWriteFailure(`Full cloud backup failed: ${error}. Your changes remain saved on this device.`);
     _lastSync = { direction: "failed", projects: 0, memories: 0, history: 0, error, userId, timestamp: Date.now() };
     return { ok: false, counts: { projects: 0, memories: 0, history: 0 }, error };
   }
@@ -152,6 +214,7 @@ export async function forcePullFromCloud(userId?: string): Promise<{
     console.log(`[OrgAInise] Hydrating localStorage with ${projects.length} projects…`);
     Storage.hydrate({ projects, memories, history });
 
+    clearCloudWriteFailure();
     _lastSync = { direction: "pulled", projects: projects.length, memories: memories.length, history: history.length, userId, timestamp: Date.now() };
 
     console.log("[OrgAInise] Hydration complete — dispatching storage-update + orgainise:pulled");
@@ -202,7 +265,7 @@ export function useSyncedStorage() {
           console.log("[OrgAInise] Auto-pull: cloud is also empty — first-time user on this account");
         } else {
           console.log(`[OrgAInise] Auto-pull complete → ${result.counts.projects} projects restored`);
-          sessionStorage.setItem(SYNC_DONE_KEY, "1");
+          markSyncDone();
         }
       });
     } else {
@@ -210,6 +273,7 @@ export function useSyncedStorage() {
       // Preserve both copies until conflict-aware merging is available.
       const reason = "Automatic cloud backup paused to prevent overwriting newer data from another device.";
       console.warn(`[OrgAInise] ${reason}`);
+      clearSyncDone();
       _lastSync = {
         direction: "paused",
         projects: local.projects,
