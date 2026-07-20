@@ -84,13 +84,16 @@ export default function Dashboard() {
     const allProjects = Storage.getProjects().filter(p => p.id !== DEMO_PROJECT_ID);
     const allMemories = Storage.getMemories().filter(m => m.projectId !== DEMO_PROJECT_ID);
     const allHistory  = allProjects.flatMap(p => Storage.getHistory(p.id));
+    const projectIds  = new Set(allProjects.map(p => p.id));
+    const allSnapshots = Storage.getAllSnapshots().filter(s => projectIds.has(s.projectId));
 
     const backup = {
       exportedAt: new Date().toISOString(),
-      version: 1,
+      version: 2,
       projects: allProjects,
       memories: allMemories,
       history:  allHistory,
+      snapshots: allSnapshots,
     };
 
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
@@ -105,7 +108,7 @@ export default function Dashboard() {
 
     toast({
       title: "Backup downloaded",
-      description: `${allProjects.length} project(s) · ${allMemories.length} memory item(s) · ${allHistory.length} session(s) exported.`,
+      description: `${allProjects.length} project(s) · ${allMemories.length} memory item(s) · ${allHistory.length} session(s) · ${allSnapshots.length} revision snapshot(s) exported.`,
     });
   }
 

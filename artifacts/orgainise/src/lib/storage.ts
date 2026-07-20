@@ -113,10 +113,12 @@ export function saveAll(): { ok: boolean; error?: string } {
     const projects = readData<Project[]>(STORAGE_KEYS.PROJECTS, []);
     const memories = readData<MemoryItem[]>(STORAGE_KEYS.MEMORIES, []);
     const history  = readData<SessionHistory[]>(STORAGE_KEYS.HISTORY, []);
+    const snapshots = readData<RevisionSnapshot[]>(STORAGE_KEYS.SNAPSHOTS, []);
 
     localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
     localStorage.setItem(STORAGE_KEYS.MEMORIES, JSON.stringify(memories));
     localStorage.setItem(STORAGE_KEYS.HISTORY,  JSON.stringify(history));
+    localStorage.setItem(STORAGE_KEYS.SNAPSHOTS, JSON.stringify(snapshots));
 
     window.dispatchEvent(new CustomEvent('orgainise:write', {
       detail: { phase: 'success', timestamp: Date.now() },
@@ -173,6 +175,8 @@ export const Storage = {
       readData<MemoryItem[]>(STORAGE_KEYS.MEMORIES, []).filter(m => m.projectId !== id));
     writeData(STORAGE_KEYS.HISTORY,
       readData<SessionHistory[]>(STORAGE_KEYS.HISTORY, []).filter(h => h.projectId !== id));
+    writeData(STORAGE_KEYS.SNAPSHOTS,
+      readData<RevisionSnapshot[]>(STORAGE_KEYS.SNAPSHOTS, []).filter(s => s.projectId !== id));
   },
 
   /* Memories */
@@ -203,6 +207,9 @@ export const Storage = {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
 
   /* Revision snapshots */
+  getAllSnapshots: (): RevisionSnapshot[] =>
+    readData<RevisionSnapshot[]>(STORAGE_KEYS.SNAPSHOTS, []),
+
   getSnapshots: (projectId: string): RevisionSnapshot[] =>
     readData<RevisionSnapshot[]>(STORAGE_KEYS.SNAPSHOTS, [])
       .filter(s => s.projectId === projectId)
