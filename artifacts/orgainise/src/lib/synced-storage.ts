@@ -21,7 +21,7 @@ const SYNC_DONE_KEY = "orgainise_db_synced";
 
 /* ─── Sync result tracking ───────────────────────────────────────── */
 
-export type SyncDirection = "pushed" | "pulled" | "skipped" | "failed" | null;
+export type SyncDirection = "pushed" | "pulled" | "skipped" | "paused" | "failed" | null;
 
 export type SyncResult = {
   direction: SyncDirection;
@@ -206,19 +206,22 @@ export function useSyncedStorage() {
         }
       });
     } else {
-      // ── Existing device: push local snapshot to keep cloud in sync ─
-      console.log(`[OrgAInise] Local data found → PUSHING ${local.projects} projects to cloud…`);
-      void forcePushToCloud(userId).then((result) => {
-        if (!result.ok) {
-          console.warn(`[OrgAInise] Auto-push failed: ${result.error}`);
-          return;
-        }
-        console.log(`[OrgAInise] Auto-push complete → ${result.counts.projects} projects synced`);
-        sessionStorage.setItem(SYNC_DONE_KEY, "1");
-        window.dispatchEvent(new CustomEvent("orgainise:synced", {
-          detail: { projects: result.counts.projects, memories: result.counts.memories, history: result.counts.history },
-        }));
-      });
+      // Bulk push cannot distinguish stale local data from newer cloud data yet.
+      // Preserve both copies until conflict-aware merging is available.
+      const reason = "Automatic cloud backup paused to prevent overwriting newer data from another device.";
+      console.warn(`[OrgAInise] ${reason}`);
+      _lastSync = {
+        direction: "paused",
+        projects: local.projects,
+        memories: local.memories,
+        history: local.history,
+        error: reason,
+        userId,
+        timestamp: Date.now(),
+      };
+      window.dispatchEvent(new CustomEvent("orgainise:sync-paused", {
+        detail: { reason },
+      }));
     }
   }, [isAuthenticated, user?.id]);
 

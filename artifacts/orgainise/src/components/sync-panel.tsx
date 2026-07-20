@@ -21,6 +21,7 @@ const DIRECTION_LABEL: Record<string, string> = {
   pushed:  "Pushed local → cloud",
   pulled:  "Pulled cloud → local",
   skipped: "Skipped (cloud was empty)",
+  paused:  "Automatic sync paused",
   failed:  "Failed",
 };
 
@@ -213,15 +214,19 @@ export function SyncPanel() {
               "flex items-start gap-2 text-sm rounded-md border px-3 py-2.5",
               lastSync.direction === "failed"
                 ? "border-destructive/30 bg-destructive/5 text-destructive"
+                : lastSync.direction === "paused"
+                ? "border-amber-400/30 bg-amber-400/5 text-amber-300"
                 : "border-emerald-400/20 bg-emerald-400/5 text-emerald-400",
             )}>
               {lastSync.direction === "failed"
+                ? <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                : lastSync.direction === "paused"
                 ? <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                 : <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
               }
               <div className="flex-1 min-w-0">
                 <span className="font-medium">{DIRECTION_LABEL[lastSync.direction] ?? lastSync.direction}</span>
-                {lastSync.direction !== "failed" && lastSync.direction !== "skipped" && (
+                {lastSync.direction !== "failed" && lastSync.direction !== "skipped" && lastSync.direction !== "paused" && (
                   <span className="text-muted-foreground ml-2">
                     {lastSync.projects} project(s) · {lastSync.memories} memory item(s) · {lastSync.history} session(s)
                   </span>
@@ -288,7 +293,8 @@ export function SyncPanel() {
 
           <p className="text-xs text-muted-foreground/60">
             Push sends your local projects to the database. Pull restores cloud projects to this browser and reloads the page.
-            Both operations are safe — neither deletes data. Check your browser console for step-by-step sync logs.
+            Automatic bulk push is paused when this device already has data because the cloud may contain newer changes.
+            Manual pull replaces this device's local data; export a backup first if you are unsure.
           </p>
         </div>
       )}

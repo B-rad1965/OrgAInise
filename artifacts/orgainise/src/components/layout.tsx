@@ -134,6 +134,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
     };
   }, [toast]);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { reason } = (e as CustomEvent<{ reason: string }>).detail;
+      setDbSynced(false);
+      toast({
+        title: "Cloud sync paused for safety",
+        description: reason,
+      });
+    };
+
+    window.addEventListener("orgainise:sync-paused", handler);
+    return () => window.removeEventListener("orgainise:sync-paused", handler);
+  }, [toast]);
+
   const handleSaveNow = () => {
     const result = saveAll();
     if (result.ok) {
